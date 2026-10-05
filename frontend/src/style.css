@@ -157,6 +157,12 @@ button:disabled {
   gap: 12px;
 }
 
+.brand-group,
+.topbar-actions,
+.brand {
+  min-width: 0;
+}
+
 .brand {
   gap: 10px;
   color: var(--text);
@@ -1624,8 +1630,9 @@ button:disabled {
 }
 
 .event-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
-  justify-content: space-between;
   gap: 12px;
   padding: 0 11px;
   border-bottom: 1px solid var(--border);
@@ -1657,9 +1664,9 @@ button:disabled {
 .dock-tabs {
   display: flex;
   height: 100%;
-  flex: 0 0 auto;
+  min-width: 0;
+  flex: 0 1 auto;
   align-items: stretch;
-  margin-right: -11px;
 }
 
 .dock-tab {
