@@ -167,6 +167,7 @@ export class Dashboard {
     });
     const back = document.createElement('button');
     back.className = 'icon-button home-back'; back.textContent = '← 主机总览'; back.type = 'button';
+    back.setAttribute('aria-label', '返回主机总览'); back.title = '返回主机总览';
     back.addEventListener('click', () => {
       if (!this.actions.files.confirmLeave()) return;
       this.actions.leaveWorkspace(); this.show(); void this.refresh();
@@ -174,10 +175,12 @@ export class Dashboard {
     document.querySelector('#app .topbar-actions')!.prepend(back);
     const files = document.createElement('button');
     files.className = 'icon-button home-back'; files.textContent = '文件管理'; files.type = 'button';
+    files.setAttribute('aria-label', '文件管理'); files.title = '文件管理';
     files.addEventListener('click', () => this.showFiles());
     document.querySelector('#app .topbar-actions')!.prepend(files);
     const forwarding = document.createElement('button');
     forwarding.className = 'icon-button home-back'; forwarding.textContent = '端口转发'; forwarding.type = 'button';
+    forwarding.setAttribute('aria-label', '端口转发'); forwarding.title = '端口转发';
     forwarding.addEventListener('click', () => this.showForwarding());
     document.querySelector('#app .topbar-actions')!.append(forwarding);
     this.show();

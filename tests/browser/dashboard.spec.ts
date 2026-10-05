@@ -39,3 +39,31 @@ test('主机列表编辑打开正确弹窗并回填资料', async ({ page }) => 
   await page.getByRole('button', { name: '编辑 Tokyo production' }).click();
   await expect(editor).toBeVisible();
 });
+
+test('进入工作台后顶栏导航不重叠或产生横向溢出', async ({ page }) => {
+  await dashboardFixture(page);
+
+  await page.getByRole('button', { name: '连接', exact: true }).click();
+  await expect(page.locator('body[data-view="workspace"]')).toBeVisible();
+
+  const layout = await page.evaluate(() => {
+    const topbar = document.querySelector<HTMLElement>('.topbar')!;
+    const actions = document.querySelector<HTMLElement>('.topbar-actions')!;
+    const buttons = [...document.querySelectorAll<HTMLElement>('.topbar-actions .home-back')];
+    const rects = buttons.map((button) => button.getBoundingClientRect());
+    return {
+      bodyWidth: document.body.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth,
+      topbarWidth: topbar.scrollWidth,
+      actionsWidth: actions.scrollWidth,
+      rects: rects.map(({ left, right, width }) => ({ left, right, width })),
+    };
+  });
+
+  expect(layout.bodyWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.topbarWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.actionsWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  for (let index = 1; index < layout.rects.length; index += 1) {
+    expect(layout.rects[index].left).toBeGreaterThanOrEqual(layout.rects[index - 1].right);
+  }
+});

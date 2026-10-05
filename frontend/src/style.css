@@ -163,6 +163,15 @@ button:disabled {
   min-width: 0;
 }
 
+/* Workspace navigation labels must size their own buttons. The generic
+   icon-button width otherwise clips the dynamically-added navigation text. */
+.topbar-actions .home-back {
+  width: auto;
+  min-width: 0;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+
 .brand {
   gap: 10px;
   color: var(--text);
@@ -2883,6 +2892,13 @@ button:disabled {
 
   .topbar {
     padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+  }
+
+  .topbar-actions .home-back {
+    width: 34px;
+    padding-inline: 0;
+    overflow: hidden;
+    font-size: 0;
   }
 
   .app-shell {
