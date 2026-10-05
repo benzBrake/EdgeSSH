@@ -1,5 +1,6 @@
 import { api } from './cloud-api';
 import type { Snippet, SnippetInput } from '../../src/accounts/snippet-data';
+import { DEMO_SNIPPETS, isDemoMode } from './demo-hosts';
 
 export type { Snippet, SnippetInput };
 
@@ -29,6 +30,11 @@ export class SnippetStore extends EventTarget {
     if (this.loaded && !force) return Promise.resolve();
     const generation = this.generation;
     this.loading = true; this.error = ''; this.notify();
+    if (isDemoMode()) {
+      this.items = DEMO_SNIPPETS.map((snippet) => ({ ...snippet }));
+      this.loaded = true; this.loading = false; this.pending = undefined; this.notify();
+      return Promise.resolve();
+    }
     this.pending = (async () => {
       try {
         const { snippets } = await api<{ snippets: Snippet[] }>('/api/snippets');
@@ -49,6 +55,13 @@ export class SnippetStore extends EventTarget {
   async save(input: SnippetInput, id?: string): Promise<void> {
     await this.pending;
     const generation = this.generation;
+    if (isDemoMode()) {
+      const snippet: Snippet = { ...input, id: id ?? `demo-snippet-${Date.now()}`, updatedAt: Date.now() };
+      if (generation !== this.generation) return;
+      this.items = [snippet, ...this.items.filter((item) => item.id !== snippet.id)];
+      this.notify();
+      return;
+    }
     const { snippet } = await api<{ snippet: Snippet }>(id ? `/api/snippets/${id}` : '/api/snippets', id ? 'PUT' : 'POST', input);
     if (generation !== this.generation) return;
     this.items = [snippet, ...this.items.filter((item) => item.id !== snippet.id)];
@@ -58,6 +71,12 @@ export class SnippetStore extends EventTarget {
   async remove(id: string): Promise<void> {
     await this.pending;
     const generation = this.generation;
+    if (isDemoMode()) {
+      if (generation !== this.generation) return;
+      this.items = this.items.filter((item) => item.id !== id);
+      this.notify();
+      return;
+    }
     await api(`/api/snippets/${id}`, 'DELETE');
     if (generation !== this.generation) return;
     this.items = this.items.filter((item) => item.id !== id);

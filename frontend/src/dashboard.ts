@@ -5,6 +5,7 @@ import type { Snippets } from './snippets';
 import { ForwardPage } from './forward-page';
 import { countryFlag } from './flags';
 import { systemIcon } from './os-icons';
+import { isDemoMode } from './demo-hosts';
 import './dashboard.css';
 
 interface DashboardActions {
@@ -120,6 +121,11 @@ export class Dashboard {
     this.get('#account-action').addEventListener('click', async (event) => {
       if (!this.authenticated) return;
       event.preventDefault();
+      if (isDemoMode()) {
+        this.signedOut();
+        this.notice('已退出演示登录。刷新或重新打开 ?demo 可再次进入演示。');
+        return;
+      }
       try {
         const { redirect } = await api<{ redirect: string }>('/api/auth/logout', 'POST');
         location.assign(redirect);
@@ -188,7 +194,7 @@ export class Dashboard {
       this.authenticated = true;
       this.get('#account-label').textContent = account.username;
       this.get('.account-avatar').textContent = account.username.slice(0, 1).toUpperCase();
-      this.get('#auth-provider-label').textContent = provider === 'github' ? 'GitHub' : 'Access';
+      this.get('#auth-provider-label').textContent = provider === 'demo' ? '演示' : provider === 'github' ? 'GitHub' : 'Access';
       const action = this.get<HTMLAnchorElement>('#account-action');
       action.textContent = '退出'; action.title = '退出登录'; action.href = '/api/auth/logout';
       await this.refresh();
@@ -248,6 +254,7 @@ export class Dashboard {
   }
 
   showFiles(): void {
+    if (isDemoMode()) { this.notice('演示模式暂不支持文件管理。'); return; }
     this.forwarding.hide();
     this.actions.snippets.hide();
     this.isHome = false; this.root.hidden = false;
@@ -274,6 +281,7 @@ export class Dashboard {
   }
 
   showForwarding(): void {
+    if (isDemoMode()) { this.notice('演示模式暂不支持端口转发。'); return; }
     if (!this.actions.files.confirmLeave()) return;
     this.actions.files.hide();
     this.actions.snippets.hide();

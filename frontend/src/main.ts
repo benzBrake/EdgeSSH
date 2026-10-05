@@ -13,6 +13,7 @@ import { FileManager, collectFileManagerElements } from './file-manager';
 import { FileTree } from './file-tree';
 import { ProcessManager, collectProcessManagerElements, type NetworkSample } from './process-manager';
 import { resetTerminalForConnection } from './terminal-session';
+import { isDemoMode } from './demo-hosts';
 import { createTerminalTools, type TerminalToolsController } from './terminal-tools';
 import { WebSocketReconnectManager } from './ws-reconnect';
 import type { ReconnectLogEntry } from './ws-reconnect';
@@ -421,6 +422,33 @@ let reconnectParams: {
   password?: string; privateKey?: string; pinnedKey?: string;
   term: string; encoding: string;
 } | null = null;
+let demoTerminal = false;
+let demoInput = '';
+
+function demoWrite(text: string): void { terminal.write(text.replace(/\n/g, '\r\n')); }
+
+function demoStart(host: string, username: string): void {
+  demoTerminal = true;
+  demoInput = '';
+  demoWrite(`\x1b[32mConnecting to ${username}@${host}...\x1b[0m\n`);
+  demoWrite('\x1b[32mSSH authentication succeeded (demo mode).\x1b[0m\n');
+  demoWrite(`Welcome to Ubuntu 24.04.3 LTS (GNU/Linux 6.8.0- demo)\n\n${username}@${host}:~$ `);
+  markReady(bilingual('演示终端已就绪', 'Demo terminal ready'));
+}
+
+function demoCommand(command: string): void {
+  const value = command.trim();
+  if (!value) { demoWrite(`\n${ui.username.value}@${ui.host.value}:~$ `); return; }
+  if (value === 'clear') { terminal.clear(); demoWrite(`${ui.username.value}@${ui.host.value}:~$ `); return; }
+  const output: Record<string, string> = {
+    help: '可用命令：pwd  whoami  uname -a  ls  clear  help',
+    pwd: '/home/' + ui.username.value,
+    whoami: ui.username.value,
+    'uname -a': 'Linux demo-edge 6.8.0-demo x86_64 GNU/Linux',
+    ls: 'app  backups  logs  README.md',
+  };
+  demoWrite(`\n${output[value] ?? `演示模式：未执行“${value}”。`}\n${ui.username.value}@${ui.host.value}:~$ `);
+}
 
 // Network rate state. The backend sends cumulative byte counters per interface
 // per tick; we keep a per-interface baseline (counters + local clock timestamp)
@@ -1493,6 +1521,14 @@ async function handleSocketData(data: string | ArrayBuffer | Blob, activeSocket:
 }
 
 function sendTerminalData(data: string): void {
+  if (demoTerminal && connectionState === 'connected') {
+    for (const char of data) {
+      if (char === '\r' || char === '\n') { demoCommand(demoInput); demoInput = ''; }
+      else if (char === '\u007f') { if (demoInput) { demoInput = demoInput.slice(0, -1); terminal.write('\b \b'); } }
+      else if (char >= ' ' && char !== '\x7f') { demoInput += char; terminal.write(char); }
+    }
+    return;
+  }
   if (socket?.readyState !== WebSocket.OPEN || connectionState !== 'connected' || !data) return;
   socket.send(JSON.stringify({ type: 'input', data }));
 }
@@ -1516,6 +1552,8 @@ function failActiveConnection(activeSocket: WebSocket | null, closeReason: strin
   updateConnectionStatus(displayReason);
   setState('error');
   if (activeSocket && activeSocket.readyState < WebSocket.CLOSING) activeSocket.close(CLIENT_CLOSE_SESSION_ERROR, closeReason);
+  demoTerminal = false;
+  demoInput = '';
 }
 
 async function issueTicket(signal: AbortSignal): Promise<{ ticket: string; sessionId: string }> {
@@ -1685,6 +1723,11 @@ async function connect(): Promise<void> {
   ui.metricHostKey.textContent = '--';
   event(bilingual(`正在连接 ${currentTargetLabel}`, `Starting ${currentTargetLabel}`), 'connect');
 
+  if (isDemoMode()) {
+    demoStart(host, username);
+    return;
+  }
+
   try {
     const password = ui.password.value;
     const privateKey = ui.privateKey.value.trim();
@@ -1831,6 +1874,9 @@ function disconnect(reason = bilingual('已由用户断开连接', 'Disconnected
   authorizationAbort = null;
   const activeSocket = socket;
   socket = null;
+  const wasDemo = demoTerminal;
+  demoTerminal = false;
+  demoInput = '';
   sshReconnectManager?.reset();
   sshReconnectManager = null;
   reconnectParams = null;
@@ -1851,7 +1897,9 @@ function disconnect(reason = bilingual('已由用户断开连接', 'Disconnected
     settled = true;
     if (generation === connectGeneration && connectionState === 'disconnecting') setState('idle');
   };
-  if (activeSocket && activeSocket.readyState < WebSocket.CLOSED) {
+  if (wasDemo) {
+    window.setTimeout(finish, 180);
+  } else if (activeSocket && activeSocket.readyState < WebSocket.CLOSED) {
     activeSocket.addEventListener('close', finish, { once: true });
     if (activeSocket.readyState < WebSocket.CLOSING) activeSocket.close(1000, 'Disconnected by user');
     window.setTimeout(finish, 1_000);

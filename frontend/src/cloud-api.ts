@@ -1,4 +1,4 @@
-import { demoApiResult } from './demo-hosts';
+import { demoApiResult, isDemoMode } from './demo-hosts';
 
 export interface HostLocation {
   ip?: string; city: string; region?: string; country: string; countryCode: string; latitude: number; longitude: number;
@@ -38,7 +38,7 @@ export class APIError extends Error {
 }
 
 export async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
-  if (import.meta.env.DEV && new URLSearchParams(location.search).has('demo')) {
+  if (isDemoMode()) {
     const result = demoApiResult(path, method);
     if (result !== undefined) return result as T;
   }

@@ -1,6 +1,15 @@
 import type { CloudHost } from './cloud-api';
+import { DEFAULT_SNIPPETS, type Snippet } from '../../src/accounts/snippet-data';
+
+export function isDemoMode(): boolean {
+  return import.meta.env.DEV && new URLSearchParams(location.search).has('demo');
+}
 
 const now = Date.now();
+
+export const DEMO_SNIPPETS: Snippet[] = DEFAULT_SNIPPETS.map((snippet, index) => ({
+  ...snippet, id: `demo-snippet-${index + 1}`, updatedAt: now,
+}));
 
 export const DEMO_HOSTS: CloudHost[] = [
   {
@@ -34,8 +43,15 @@ export const DEMO_HOSTS: CloudHost[] = [
 ];
 
 export function demoApiResult(path: string, method: string): unknown | undefined {
+  if (path === '/api/auth/me' && method === 'GET') return { account: { username: 'Demo Admin' }, provider: 'demo' };
+  if (path === '/api/snippets' && method === 'GET') return { snippets: DEMO_SNIPPETS };
+  if (path.endsWith('/credentials') && method === 'POST') {
+    const hostId = path.split('/')[3];
+    const host = DEMO_HOSTS.find((item) => item.id === hostId);
+    if (!host) return { error: '演示主机不存在' };
+    return host.authMethod === 'password' ? { password: 'demo-password' } : { privateKey: 'demo-private-key' };
+  }
   if (method !== 'GET') return undefined;
-  if (path === '/api/auth/me') return { account: { username: 'Demo Admin' } };
   if (path === '/api/hosts') return { hosts: DEMO_HOSTS };
   if (path === '/api/forward-rules') return { rules: [] };
   return undefined;
