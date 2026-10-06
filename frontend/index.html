@@ -15,6 +15,14 @@
     <title>EdgeSSH · Private workspace</title>
   </head>
   <body>
+    <nav id="session-tabs" class="session-tabs" aria-label="SSH 会话" data-i18n-aria-label-zh="SSH 会话" data-i18n-aria-label-en="SSH sessions" hidden>
+      <button id="session-home" class="session-home" type="button" aria-label="打开主机总览" data-i18n-aria-label-zh="打开主机总览" data-i18n-aria-label-en="Open host dashboard">
+        <span aria-hidden="true">⌂</span><span data-i18n-zh="主机总览" data-i18n-en="Hosts">主机总览</span>
+      </button>
+      <div id="session-tab-list" class="session-tab-list" role="tablist" aria-label="已连接会话" data-i18n-aria-label-zh="已连接会话" data-i18n-aria-label-en="Connected sessions"></div>
+      <button id="session-new" class="session-new" type="button" aria-label="新建 SSH 会话" data-i18n-aria-label-zh="新建 SSH 会话" data-i18n-aria-label-en="New SSH session" title="新建 SSH 会话" data-i18n-title-zh="新建 SSH 会话" data-i18n-title-en="New SSH session">＋</button>
+    </nav>
+    <div id="session-frame-host" class="session-frame-host" hidden></div>
     <div id="app" hidden>
       <header class="topbar">
         <div class="brand-group">

@@ -12,7 +12,7 @@ interface DashboardActions {
   files: FilePage;
   snippets: Snippets;
   refresh(): Promise<CloudHost[]>;
-  connect(host: CloudHost): Promise<void>;
+  connect(host: CloudHost): Promise<boolean | void>;
   quickConnect(): void;
   leaveWorkspace(): void;
 }
@@ -152,7 +152,7 @@ export class Dashboard {
     for (const id of ['#quick-connect', '#bottom-quick']) this.get(id).addEventListener('click', () => {
       if (this.busy || !this.actions.files.confirmLeave()) return;
       this.actions.leaveWorkspace();
-      this.openWorkspace(); this.actions.quickConnect();
+      this.actions.quickConnect();
     });
     this.field('authMethod').addEventListener('change', () => this.updateCredentialFields());
     this.form.addEventListener('submit', (event) => { event.preventDefault(); void this.save(); });
@@ -422,7 +422,11 @@ export class Dashboard {
     if (this.busy) return;
     this.busy = true; this.root.setAttribute('aria-busy', 'true');
     this.notice(`正在读取 ${host.name} 的连接凭据…`);
-    try { await this.actions.connect(host); this.openWorkspace(); this.get('#home-notice').hidden = true; }
+    try {
+      const handledBySession = await this.actions.connect(host);
+      if (handledBySession !== false) this.openWorkspace();
+      this.get('#home-notice').hidden = true;
+    }
     catch (error) { this.notice(error instanceof Error ? error.message : '连接准备失败。'); }
     finally { this.busy = false; this.root.removeAttribute('aria-busy'); }
   }

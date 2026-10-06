@@ -325,6 +325,17 @@ const ui = {
   acceptHostKey: element<HTMLButtonElement>('accept-host-key'),
 };
 
+const isSessionFrame = new URLSearchParams(location.search).get('sessionFrame') === '1';
+const embeddedSessionId = new URLSearchParams(location.search).get('sessionId') ?? '';
+if (isSessionFrame) document.body.dataset.sessionFrame = 'true';
+const sessionUI = {
+  root: element<HTMLElement>('session-tabs'),
+  list: element<HTMLElement>('session-tab-list'),
+  home: element<HTMLButtonElement>('session-home'),
+  create: element<HTMLButtonElement>('session-new'),
+  frameHost: element<HTMLElement>('session-frame-host'),
+};
+
 function updateRevealPasswordButton(): void {
   const revealed = ui.password.type === 'text';
   ui.revealPassword.setAttribute('aria-pressed', revealed ? 'true' : 'false');
@@ -428,6 +439,136 @@ let reconnectParams: {
 } | null = null;
 let demoTerminal = false;
 let demoInput = '';
+
+interface EmbeddedSession {
+  id: string;
+  label: string;
+  fixedLabel: boolean;
+  iframe: HTMLIFrameElement;
+  state: ConnectionState;
+}
+
+const embeddedSessions = new Map<string, EmbeddedSession>();
+let activeEmbeddedSessionId: string | null = null;
+
+function postSessionEvent(type: string, payload: Record<string, unknown> = {}): void {
+  if (!isSessionFrame || !embeddedSessionId || window.parent === window) return;
+  window.parent.postMessage({ source: 'edgessh-session', sessionId: embeddedSessionId, type, ...payload }, location.origin);
+}
+
+function renderEmbeddedSessionTabs(): void {
+  if (isSessionFrame) return;
+  document.body.classList.toggle('has-session-tabs', embeddedSessions.size > 0);
+  sessionUI.root.hidden = embeddedSessions.size === 0;
+  sessionUI.list.replaceChildren();
+  for (const session of embeddedSessions.values()) {
+    const tab = document.createElement('div');
+    tab.className = 'session-tab';
+    tab.dataset.sessionId = session.id;
+    tab.setAttribute('role', 'tab');
+    tab.tabIndex = 0;
+    tab.setAttribute('aria-selected', String(session.id === activeEmbeddedSessionId));
+    tab.setAttribute('aria-controls', `session-frame-${session.id}`);
+    tab.title = session.label;
+    const copy = document.createElement('span');
+    copy.className = 'session-tab-copy';
+    const status = document.createElement('i');
+    status.className = `session-tab-status ${session.state}`;
+    status.setAttribute('aria-hidden', 'true');
+    const label = document.createElement('span');
+    label.className = 'session-tab-label';
+    label.textContent = session.label;
+    copy.append(status, label);
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'session-tab-close';
+    close.textContent = '\u00d7';
+    close.setAttribute('aria-label', bilingual(`关闭 ${session.label}`, `Close ${session.label}`));
+    close.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeEmbeddedSession(session.id);
+    });
+    tab.append(copy, close);
+    tab.addEventListener('click', () => activateEmbeddedSession(session.id));
+    tab.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        activateEmbeddedSession(session.id);
+      }
+    });
+    sessionUI.list.append(tab);
+  }
+}
+
+function activateEmbeddedSession(id: string | null): void {
+  activeEmbeddedSessionId = id;
+  if (id === null || !embeddedSessions.has(id)) {
+    sessionUI.frameHost.hidden = true;
+    dashboard?.show();
+    renderEmbeddedSessionTabs();
+    return;
+  }
+  sessionUI.frameHost.hidden = false;
+  document.body.dataset.view = 'workspace';
+  dashboard?.root.setAttribute('hidden', 'true');
+  for (const session of embeddedSessions.values()) {
+    session.iframe.hidden = session.id !== id;
+  }
+  embeddedSessions.get(id)?.iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'session-focus' }, location.origin);
+  renderEmbeddedSessionTabs();
+}
+
+function closeEmbeddedSession(id: string): void {
+  const session = embeddedSessions.get(id);
+  if (!session) return;
+  session.iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'session-close' }, location.origin);
+  session.iframe.remove();
+  embeddedSessions.delete(id);
+  if (activeEmbeddedSessionId === id) {
+    const next = embeddedSessions.keys().next().value as string | undefined;
+    activateEmbeddedSession(next ?? null);
+  } else renderEmbeddedSessionTabs();
+}
+
+function openEmbeddedSession(profile?: SavedProfile): void {
+  if (isSessionFrame) return;
+  const id = crypto.randomUUID();
+  const label = profile?.name || (profile ? targetLabel(profile.host, profile.port, profile.username) : bilingual('临时连接', 'Temporary session'));
+  const iframe = document.createElement('iframe');
+  iframe.id = `session-frame-${id}`;
+  iframe.title = label;
+  const url = new URL(location.href);
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('sessionFrame', '1');
+  url.searchParams.set('sessionId', id);
+  if (profile) url.searchParams.set('profileId', profile.id);
+  if (new URLSearchParams(location.search).get('demo') === '1') url.searchParams.set('demo', '1');
+  iframe.src = `${url.pathname}${url.search}`;
+  sessionUI.frameHost.append(iframe);
+  embeddedSessions.set(id, { id, label, fixedLabel: Boolean(profile), iframe, state: 'connecting' });
+  activeEmbeddedSessionId = id;
+  activateEmbeddedSession(id);
+  renderEmbeddedSessionTabs();
+}
+
+if (!isSessionFrame) {
+  window.addEventListener('message', (event) => {
+    if (event.origin !== location.origin || !event.data || event.data.source !== 'edgessh-session') return;
+    const message = event.data as { sessionId?: string; type?: string; state?: ConnectionState; label?: string };
+    if (!message.sessionId || !message.type) return;
+    const session = embeddedSessions.get(message.sessionId);
+    if (!session || event.source !== session.iframe.contentWindow) return;
+    if (message.type === 'state' && message.state) session.state = message.state;
+    if (message.type === 'label' && message.label && !session.fixedLabel) {
+      session.label = message.label;
+      session.iframe.title = message.label;
+    }
+    renderEmbeddedSessionTabs();
+  });
+  sessionUI.home.addEventListener('click', () => activateEmbeddedSession(null));
+  sessionUI.create.addEventListener('click', () => openEmbeddedSession());
+}
 
 function demoWrite(text: string): void { terminal.write(text.replace(/\n/g, '\r\n')); }
 
@@ -893,7 +1034,7 @@ function validateProfileFields(): string | null {
   if (!Number.isInteger(port) || port < 1 || port > 65_535) return bilingual('端口必须介于 1 和 65535 之间。', 'Port must be between 1 and 65535.');
   if (!username || username.length > 128 || /[\r\n\0]/.test(username)) return bilingual('请输入有效的 SSH 用户名。', 'Enter a valid SSH username.');
   const fingerprint = ui.fingerprint.value.trim();
-  if (fingerprint && !SSH_FINGERPRINT_RE.test(fingerprint)) return bilingual('主机指纹必须使用 SHA256:base64 格式。', 'Host fingerprint must use the SHA256:base64 format.');
+  if (fingerprint && !SSH_FINGERPRINT_RE.test(fingerprint) && !isDemoMode()) return bilingual('主机指纹必须使用 SHA256:base64 格式。', 'Host fingerprint must use the SHA256:base64 format.');
   return null;
 }
 
@@ -902,9 +1043,9 @@ function validateConnection(): string | null {
   if (profileError) return profileError;
   if (authMethod() === 'publickey') {
     const key = ui.privateKey.value.trim();
-    if (!key) return bilingual('请粘贴或选择未加密的 OpenSSH 私钥。', 'Paste or choose an unencrypted OpenSSH private key.');
+    if (!key && !isDemoMode()) return bilingual('请粘贴或选择未加密的 OpenSSH 私钥。', 'Paste or choose an unencrypted OpenSSH private key.');
     if (new TextEncoder().encode(key).length > MAX_KEY_BYTES) return bilingual('私钥大于 64 KiB。', 'The private key is larger than 64 KiB.');
-    if (!key.includes('BEGIN OPENSSH PRIVATE KEY')) return bilingual('仅支持未加密的 OpenSSH 私钥。', 'Only unencrypted OpenSSH private keys are supported.');
+    if (key && !key.includes('BEGIN OPENSSH PRIVATE KEY') && !isDemoMode()) return bilingual('仅支持未加密的 OpenSSH 私钥。', 'Only unencrypted OpenSSH private keys are supported.');
   }
   return null;
 }
@@ -1130,6 +1271,7 @@ function updateConnectionStatus(message: LocalizedMessage): void {
   const text = localize(message);
   ui.sessionSubtitle.textContent = text;
   filePage?.setMessage(text);
+  postSessionEvent('status', { message: text });
   if (connectionState === 'connecting') {
     const btnSpan = ui.connect.querySelector<HTMLElement>('span:last-child');
     if (btnSpan) btnSpan.textContent = text;
@@ -1166,6 +1308,8 @@ function setState(state: ConnectionState, label?: string): void {
   ui.connect.setAttribute('aria-label', controlLabel);
   ui.connect.title = currentSessionId || controlLabel;
   terminalTools?.setConnected(state === 'connected');
+  postSessionEvent('state', { state, label: currentTargetLabel });
+  if (currentTargetLabel) postSessionEvent('label', { label: currentTargetLabel });
 }
 
 function event(message: string, category = 'session', error = false, alternate?: string): void {
@@ -1187,6 +1331,7 @@ function event(message: string, category = 'session', error = false, alternate?:
   ui.eventLog.append(line);
   while (ui.eventLog.childElementCount > 100) ui.eventLog.firstElementChild?.remove();
   ui.eventLog.scrollTop = ui.eventLog.scrollHeight;
+  postSessionEvent('event', { message: localize(eventTranslation), category, error });
 }
 
 function fitTerminal(send = true): void {
@@ -2248,20 +2393,63 @@ async function initialize(): Promise<void> {
       return profiles;
     },
     connect: async (host) => {
+      if (!isSessionFrame) {
+        openEmbeddedSession(host);
+        return false;
+      }
       await applyProfile(host);
       await connect();
+      return true;
     },
     quickConnect: () => {
+      if (!isSessionFrame) {
+        openEmbeddedSession();
+        return;
+      }
       clearForm();
+      dashboard?.openWorkspace();
       setPanelOpen(true);
       requestAnimationFrame(() => { fitTerminal(false); ui.host.focus(); });
     },
     leaveWorkspace: () => {
-      disconnect(bilingual('已返回主机总览', 'Returned to host dashboard'));
-      clearCredentials();
+      if (isSessionFrame) {
+        disconnect(bilingual('已返回主机总览', 'Returned to host dashboard'));
+        clearCredentials();
+      } else {
+        // Also invalidate a credential lookup that has not reached connect() yet.
+        // Embedded sessions own their sockets in child frames and are unaffected.
+        disconnect(bilingual('已返回主机总览', 'Returned to host dashboard'));
+        clearCredentials();
+        dashboard?.show();
+      }
     },
   });
   await dashboard.start();
+  if (isSessionFrame) {
+    dashboard.openWorkspace();
+    const profileId = new URLSearchParams(location.search).get('profileId');
+    if (profileId) {
+      const profile = profiles.find((item) => item.id === profileId);
+      if (profile) {
+        try {
+          await applyProfile(profile);
+          await connect();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : bilingual('读取主机凭据失败。', 'Could not read host credentials.');
+          showFormError(message);
+          toast(message, 'error');
+          setState('error');
+        }
+      } else {
+        showFormError(bilingual('找不到请求的主机。', 'The requested host was not found.'));
+        setState('error');
+      }
+    } else {
+      setPanelOpen(true);
+      requestAnimationFrame(() => ui.host.focus());
+    }
+    postSessionEvent('ready', { label: currentTargetLabel });
+  }
 }
 
 void initialize().catch((error) => {

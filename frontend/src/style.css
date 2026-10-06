@@ -22,6 +22,7 @@
   --danger-dim: rgba(255, 123, 130, 0.12);
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
   --topbar-height: calc(62px + env(safe-area-inset-top));
+  --session-tabs-height: 46px;
   --mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -73,6 +74,165 @@ body {
   font-family: var(--sans);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
+}
+
+.session-tabs {
+  position: fixed;
+  z-index: 120;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  height: var(--session-tabs-height);
+  align-items: stretch;
+  gap: 5px;
+  padding: 5px max(12px, env(safe-area-inset-right)) 5px max(12px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.session-home,
+.session-new,
+.session-tab {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.session-home {
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.session-home:hover,
+.session-new:hover,
+.session-tab:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.session-tab-list {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: stretch;
+  gap: 3px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.session-tab {
+  position: relative;
+  cursor: pointer;
+  flex: 0 1 230px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 7px 0 11px;
+  text-align: left;
+}
+
+.session-tab[aria-selected='true'] {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.session-tab-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.session-tab-status {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--muted-2);
+}
+
+.session-tab-status.connected { background: var(--accent); box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 55%, transparent); }
+.session-tab-status.connecting { background: var(--warning); }
+.session-tab-status.error { background: var(--danger); }
+
+.session-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.session-tab-close {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-2);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.session-tab-close:hover { background: var(--danger-dim); color: var(--danger); }
+
+.session-new {
+  width: 32px;
+  flex: 0 0 auto;
+  justify-content: center;
+  font-size: 19px;
+}
+
+.session-frame-host {
+  position: fixed;
+  z-index: 110;
+  top: var(--session-tabs-height);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* The dashboard is a normal-flow page. Reserve the fixed session bar's
+   height while it is visible so the home header stays fully reachable. */
+body.has-session-tabs[data-view='dashboard'] #dashboard {
+  padding-top: var(--session-tabs-height);
+}
+
+.session-frame-host iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+body[data-session-frame='true'] .topbar { display: none; }
+body[data-session-frame='true'] #app { height: 100%; }
+body[data-session-frame='true'] .app-shell { height: 100%; }
+body[data-session-frame='true'] #dashboard,
+body[data-session-frame='true'] #session-tabs,
+body[data-session-frame='true'] #session-frame-host { display: none !important; }
+body[data-session-frame='true'] .connection-panel { top: 0; }
+
+@media (max-width: 600px) {
+  :root { --session-tabs-height: 42px; }
+  .session-tabs { padding-block: 4px; }
+  .session-frame-host { top: var(--session-tabs-height); }
+  .session-home { padding-inline: 8px; }
+  .session-home > span:last-child { display: none; }
+  .session-tab { flex-basis: 175px; }
 }
 
 button,
