@@ -183,7 +183,12 @@ export class SSHSessionDO implements DurableObject {
         await session.handleClientMessage(message);
         return;
       }
-      if (this.pendingConnections.has(ws)) throw new Error('An SSH connection is already being initialized');
+      if (this.pendingConnections.has(ws)) {
+        // A WebSocket accepts exactly one connect frame. Close duplicate
+        // initialization attempts without starting a second TCP connection.
+        this.reject(ws, 'Duplicate SSH connect message');
+        return;
+      }
       if (typeof message !== 'string' || message.length > 160 * 1024) throw new Error('The first WebSocket message must be a connect JSON object');
       let decoded: unknown;
       try { decoded = JSON.parse(message); } catch { throw new Error('Invalid connect JSON'); }

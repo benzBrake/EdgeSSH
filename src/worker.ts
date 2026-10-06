@@ -130,7 +130,7 @@ export default {
     const isApiRequest = url.pathname.startsWith('/api/');
     const isForwardRequest = url.pathname.startsWith('/_forward/');
     try {
-      if (isProductionHttp(request)) {
+      if (isProductionHttp(request, env.DEV_AUTH === 'true')) {
         if (isApiRequest) return corsResponse(jsonError('HTTPS is required', 403));
         if (request.method === 'GET' || request.method === 'HEAD') return httpsRedirect(request);
         return jsonError('HTTPS is required', 403);

@@ -551,6 +551,10 @@ npx wrangler d1 migrations apply DB --local
 npm run dev
 ```
 
+`.dev.vars` 中的 `DEV_AUTH=true` 仅用于本地 Worker 开发，会以 `local-development` 身份直接访问真实本地 API，无需 GitHub 或 Cloudflare Access 登录。新增主机前还必须配置 `ENCRYPTION_KEY`：使用任意安全随机的 32 字节 Base64 值（例如通过密码管理器生成），不要将真实密钥提交到 Git。不要将 `DEV_AUTH` 用于公开或生产环境。
+
+URL 参数 `?demo` 是独立的前端演示模式：它使用内存演示数据，不连接本地 Worker API；开发免登录不会自动启用或改变 `?demo` 行为。
+
 前端开发:
 
 ```bash

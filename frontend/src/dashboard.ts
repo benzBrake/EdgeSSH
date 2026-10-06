@@ -199,7 +199,7 @@ export class Dashboard {
       this.authenticated = true;
       this.get('#account-label').textContent = account.username;
       this.get('.account-avatar').textContent = account.username.slice(0, 1).toUpperCase();
-      this.get('#auth-provider-label').textContent = provider === 'demo' ? '演示' : provider === 'github' ? 'GitHub' : 'Access';
+      this.get('#auth-provider-label').textContent = provider === 'demo' ? '演示' : provider === 'local-dev' ? '本地开发' : provider === 'github' ? 'GitHub' : 'Access';
       const action = this.get<HTMLAnchorElement>('#account-action');
       action.textContent = '退出'; action.title = '退出登录'; action.href = '/api/auth/logout';
       await this.refresh();

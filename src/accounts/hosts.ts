@@ -143,7 +143,15 @@ export async function hostsRoute(request: Request, env: Env, accountId: string, 
   if (!previous || previous.host !== payload.host || !previous.location) {
     await refreshLocation(payload);
   }
-  const encrypted = await encryptHost(payload, env.ENCRYPTION_KEY, accountId, hostId);
+  let encrypted: string;
+  try {
+    encrypted = await encryptHost(payload, env.ENCRYPTION_KEY, accountId, hostId);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('ENCRYPTION_KEY')) {
+      throw new APIError('本地开发缺少有效的 ENCRYPTION_KEY。请在 .dev.vars 配置 32 字节 Base64 密钥后重启 Wrangler。', 503);
+    }
+    throw error;
+  }
   const now = Date.now();
   if (id) {
     const result = await env.DB.prepare('UPDATE hosts SET encrypted_payload = ?, updated_at = ? WHERE id = ? AND account_id = ?')

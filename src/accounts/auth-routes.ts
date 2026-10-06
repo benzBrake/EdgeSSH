@@ -12,6 +12,7 @@ export async function authRoute(request: Request, env: Env): Promise<Response | 
   if (path === '/api/auth/logout') {
     if (request.method !== 'POST') return json({ error: '请使用 POST 退出登录。' }, 405);
     await currentAccount(request, env);
+    if (provider === 'local-dev') return json({ redirect: '/' });
     const workspace = await workspaceState(env);
     await revokeWorkspaceSessions(env, workspace);
     return clearGithubCookies(json({ redirect: provider === 'cloudflare' ? '/cdn-cgi/access/logout' : '/' }));

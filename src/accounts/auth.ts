@@ -11,6 +11,7 @@ const resolvers = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 export async function currentAccount(request: Request, env: Env): Promise<WorkspaceAccount> {
   const provider = authProvider(env);
+  if (provider === 'local-dev') return { id: 'local-development', username: 'local-development' };
   const workspace = await workspaceState(env);
   if (workspace.authProvider !== provider) throw new APIError('登录方式切换尚未完成，请重新部署。', 503);
   const identity = provider === 'github'

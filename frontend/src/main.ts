@@ -60,6 +60,10 @@ interface ConnectionConfig {
   expectedFingerprint?: string;
 }
 
+// Guard against duplicate open events or reconnect callbacks sending a second
+// SSH connect frame on the same WebSocket.
+const connectSentSockets = new WeakSet<WebSocket>();
+
 interface ServerMessage {
   type?: string;
   event?: string;
@@ -1618,6 +1622,8 @@ function createSshReconnectFactory(): (attempt: number) => Promise<WebSocket> {
       else config.privateKey = params.privateKey;
       if (params.pinnedKey) config.expectedFingerprint = params.pinnedKey;
 
+      if (connectSentSockets.has(ws)) return;
+      connectSentSockets.add(ws);
       ws.send(JSON.stringify(config));
       updateConnectionStatus(localized('正在打开 TCP 连接...', 'Opening TCP connection...'));
       event(bilingual('WebSocket 已建立，正在打开 SSH 传输（自动重连）。', 'WebSocket established; opening SSH transport (auto-reconnect).'), 'transport');
@@ -1787,6 +1793,8 @@ async function connect(): Promise<void> {
       if (method === 'password') config.password = password;
       else config.privateKey = privateKey;
       if (pinnedKey) config.expectedFingerprint = pinnedKey;
+      if (connectSentSockets.has(activeSocket)) return;
+      connectSentSockets.add(activeSocket);
       activeSocket.send(JSON.stringify(config));
       updateConnectionStatus(localized('正在打开 TCP 连接...', 'Opening TCP connection...'));
       event(bilingual('WebSocket 已建立，正在打开 SSH 传输。', 'WebSocket established; opening SSH transport.'), 'transport');

@@ -39,8 +39,8 @@ export function jsonError(error: string, status: number): Response {
   return secureResponse(Response.json({ error }, { status, headers: { 'Cache-Control': 'no-store' } }));
 }
 
-export function isProductionHttp(request: Request): boolean {
-  return new URL(request.url).protocol === 'http:' && request.headers.has('CF-Connecting-IP');
+export function isProductionHttp(request: Request, devAuth = false): boolean {
+  return !devAuth && new URL(request.url).protocol === 'http:' && request.headers.has('CF-Connecting-IP');
 }
 
 export function hasValidWebSocketOrigin(request: Request): boolean {
