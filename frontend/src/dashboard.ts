@@ -27,6 +27,8 @@ const icons = {
   shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/>',
   search: '<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>',
   refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+  edit: '<path d="m4 16-.8 4.8L8 20l10.8-10.8a2.8 2.8 0 0 0-4-4Z"/><path d="m13.5 6.5 4 4"/>',
+  trash: '<path d="M4 7h16"/><path d="M10 11v6m4-6v6"/><path d="m6 7 1 14h10l1-14M9 7V4h6v3"/>',
 };
 function icon(name: keyof typeof icons): string { return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`; }
 
@@ -382,16 +384,16 @@ export class Dashboard {
         location.append(relocate);
         const connect = document.createElement('button'); connect.className = 'home-button connect-host'; connect.textContent = '连接'; connect.type = 'button';
         connect.addEventListener('click', () => void this.connectHost(host));
-        const edit = document.createElement('button'); edit.className = 'host-row-action'; edit.textContent = '编辑'; edit.type = 'button'; edit.setAttribute('aria-label', `编辑 ${host.name}`);
+        const edit = document.createElement('button'); edit.className = 'host-row-action'; edit.innerHTML = icon('edit'); edit.type = 'button'; edit.title = '编辑主机'; edit.setAttribute('aria-label', `编辑 ${host.name}`);
         edit.addEventListener('click', () => this.openEditor(host));
-        const remove = document.createElement('button'); remove.className = 'host-row-action delete'; remove.textContent = '×'; remove.type = 'button'; remove.setAttribute('aria-label', `删除 ${host.name}`);
+        const remove = document.createElement('button'); remove.className = 'host-row-action delete'; remove.innerHTML = icon('trash'); remove.type = 'button'; remove.title = '删除主机'; remove.setAttribute('aria-label', `删除 ${host.name}`);
         remove.addEventListener('click', async () => {
           if (!confirm(`删除主机「${host.name}」及保存的凭据？此操作不会删除服务器。`)) return;
           remove.disabled = true;
           try { await removeHost(host.id); await this.refresh(); }
           catch (error) { this.notice(error instanceof Error ? error.message : '删除失败。'); remove.disabled = false; }
         });
-        row.append(symbol, copy, location, connect, edit, remove); list.append(row);
+        row.append(symbol, copy, location, edit, remove, connect); list.append(row);
       }
     }
   }
