@@ -370,11 +370,15 @@ export class Dashboard {
         if (host.location) {
           const place = host.location.city || host.location.region || host.location.country;
           locationText.textContent = place;
-          location.title = [place, host.location.region, host.location.ip].filter(Boolean).join(' · ');
+          const locationLabel = [place, host.location.region, host.location.ip].filter(Boolean).join(' · ');
+          location.dataset.tooltip = locationLabel;
+          location.setAttribute('aria-label', locationLabel);
           location.append(countryFlag(host.location.countryCode), locationText);
         } else {
           location.classList.add('unknown');
           locationText.textContent = '位置未知';
+          location.dataset.tooltip = '位置未知';
+          location.setAttribute('aria-label', '位置未知');
           location.append(locationText);
         }
         const relocate = document.createElement('button'); relocate.type = 'button'; relocate.className = 'host-location-refresh';

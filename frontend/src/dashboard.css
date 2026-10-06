@@ -72,7 +72,7 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
 #dashboard .host-filters button.active { color: var(--home-ink); border-color: var(--home-accent); }
 .host-list { min-height: 282px; }
 .host-group-heading { font-size: 12px; font-weight: 650; margin: 18px 0 9px; color: var(--home-muted); }
-.host-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) 190px 26px 26px auto; grid-template-areas: "symbol copy location edit delete connect"; align-items: center; gap: 10px; border: 1px solid var(--home-line); border-radius: 8px; margin-bottom: 9px; padding: 14px 12px; background: var(--home-surface); }
+.host-row { container-type: inline-size; display: grid; grid-template-columns: 36px minmax(0, 1fr) 190px 26px 26px auto; grid-template-areas: "symbol copy location edit delete connect"; align-items: center; gap: 10px; border: 1px solid var(--home-line); border-radius: 8px; margin-bottom: 9px; padding: 14px 12px; background: var(--home-surface); }
 .host-row:hover { border-color: var(--home-accent); background: var(--home-accent-soft); }
 .host-symbol { display: grid; place-items: center; border-radius: 8px; background: var(--home-bg); width: 36px; height: 36px; color: var(--home-muted); overflow: hidden; }
 .host-symbol { grid-area: symbol; }
@@ -84,14 +84,25 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
 .host-copy { grid-area: copy; }
 .host-copy strong { display: block; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .host-copy > span { display: block; font-size: 12px; color: var(--home-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 3px; font-family: var(--home-mono); }
-.host-location { display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: center; gap: 6px; width: min(190px, 100%); font-size: 12px; color: var(--home-muted); white-space: nowrap; }
+.host-location { display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: center; gap: 6px; width: min(190px, 100%); box-sizing: border-box; margin-right: 4px; padding: 4px 8px 4px 6px; font-size: 12px; color: var(--home-muted); white-space: nowrap; }
 .host-location { grid-area: location; }
 .host-location-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .host-location.unknown .host-location-text { grid-column: 1 / 3; }
+.host-location[data-tooltip] { position: relative; }
+.host-location[data-tooltip]::after { content: attr(data-tooltip); display: none; position: absolute; z-index: 20; left: 0; bottom: calc(100% + 8px); width: max-content; max-width: min(280px, calc(100vw - 32px)); padding: 7px 10px; border: 1px solid color-mix(in srgb, var(--home-ink) 18%, transparent); border-radius: 6px; background: var(--home-ink); color: var(--home-surface); box-shadow: 0 5px 16px var(--home-shadow); font-size: 11px; line-height: 1.35; white-space: normal; overflow-wrap: break-word; word-break: normal; opacity: 0; pointer-events: none; transform: translateY(3px); transition: opacity .16s ease, transform .16s ease; }
+.host-location[data-tooltip]:hover::after, .host-location[data-tooltip]:focus-within::after { opacity: 1; transform: translateY(0); }
 #dashboard .host-location-refresh { display: grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px; padding: 0; border-radius: 50%; background: transparent; color: var(--home-muted); }
 #dashboard .host-location-refresh:hover, #dashboard .host-location-refresh:focus-visible { color: var(--home-accent-hover); background: var(--home-accent-soft); }
 #dashboard .host-location-refresh:disabled { opacity: .45; cursor: wait; }
 #dashboard .host-location-refresh svg { width: 15px; height: 15px; }
+@container (max-width: 520px) {
+  .host-location { grid-template-columns: 30px 30px; width: 72px; }
+  .host-location-text { display: none; }
+  .host-location.unknown { grid-template-columns: 30px; width: 30px; }
+  .host-location.unknown .host-location-text { display: none; }
+  .host-location[data-tooltip]::after { display: block; }
+  .host-location[data-tooltip]::after { left: 0; }
+}
 @media (pointer: coarse) { #dashboard .host-location-refresh { width: 40px; height: 40px; } }
 .country-flag { flex: 0 0 auto; object-fit: cover; border-radius: 1px; }
 .host-location .country-flag { width: 30px; height: 22.5px; align-self: center; }
@@ -166,17 +177,16 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
   .home-layout { grid-template-columns: 86px minmax(0, 1fr); }
   .hosts-pane { padding-right: 18px; }
   .host-row {
-    grid-template-columns: 32px minmax(0, 1fr) auto auto minmax(58px, auto);
-    grid-template-areas: "symbol copy edit delete connect" "symbol location location location connect";
+    grid-template-columns: 32px minmax(0, 1fr) 72px 26px 26px minmax(58px, auto);
+    grid-template-areas: "symbol copy location edit delete connect";
     gap: 4px 8px;
     padding-block: 11px;
   }
   .host-symbol { grid-area: symbol; }
   .host-copy { grid-area: copy; }
-  .host-location { grid-area: location; width: auto; max-width: none; }
-  .host-row .connect-host { grid-area: connect; align-self: start; }
-  .host-row .host-row-action { grid-area: edit; align-self: start; }
-  .host-row .host-row-action.delete { grid-area: delete; align-self: start; }
+  .host-location { grid-area: location; width: 72px; max-width: none; gap: 0; margin-right: 2px; padding: 3px 5px 3px 3px; }
+  .host-location-text { display: none; }
+  .host-location[data-tooltip]::after { display: block; }
   .storage-tag { display: none; }
   .host-globe { margin-top: 95px; }
 }
@@ -207,14 +217,11 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
   #dashboard .home-section-heading .home-button { font-size: 12px; padding-inline: 10px; }
   .host-filters { gap: 12px; }
   .host-row {
-    grid-template-columns: 28px minmax(0, 1fr) auto minmax(58px, auto);
-    grid-template-areas: "symbol copy edit delete" "symbol location location connect";
+    grid-template-columns: 28px minmax(0, 1fr) 72px 26px 26px minmax(58px, auto);
+    grid-template-areas: "symbol copy location edit delete connect";
     gap: 3px 7px;
     padding: 10px 9px;
   }
-  .host-row .host-row-action:not(.delete) { grid-area: edit; justify-self: start; }
-  .host-row .host-row-action.delete { grid-area: delete; }
-  .host-row .connect-host { grid-area: connect; }
   .host-copy strong { font-size: 13px; }
   .host-copy > span { font-size: 11px; }
   .host-symbol { width: 28px; height: 28px; border-radius: 7px; }
