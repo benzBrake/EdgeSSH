@@ -203,7 +203,7 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
   .home-section-heading { gap: 12px; align-items: flex-start; }
   .home-section-heading h1 { font-size: 25px; }
   .home-section-heading p:last-child { font-size: 12px; }
-  .home-eyebrow { font-size: 9px; }
+  .home-eyebrow { font-size: 10px; }
   #dashboard .home-section-heading .home-button { font-size: 12px; padding-inline: 10px; }
   .host-filters { gap: 12px; }
   .host-row {
