@@ -1338,8 +1338,16 @@ function fitTerminal(send = true): void {
   cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
     try {
+      // Hidden session iframes report a zero-sized terminal stage. FitAddon
+      // clamps that to its minimum dimensions, which would send a spurious
+      // SSH window-change when the user opens the host dashboard.
+      const stage = ui.terminalStage.getBoundingClientRect();
+      if (stage.width <= 0 || stage.height <= 0) return;
+      const previousCols = terminal.cols;
+      const previousRows = terminal.rows;
       fitAddon.fit();
-      if (send && socket?.readyState === WebSocket.OPEN) {
+      if (send && socket?.readyState === WebSocket.OPEN
+        && (terminal.cols !== previousCols || terminal.rows !== previousRows)) {
         socket.send(JSON.stringify({ type: 'resize', cols: terminal.cols, rows: terminal.rows }));
       }
     } catch {
