@@ -30,6 +30,7 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
 #dashboard button:disabled { cursor: wait; opacity: .5; }
 #dashboard button:active:not(:disabled) { transform: translateY(1px); }
 #dashboard :is(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid var(--home-accent); outline-offset: 3px; }
+#dashboard .home-search:focus-within { border-color: var(--home-accent); }
 #dashboard a { color: inherit; }
 #dashboard h1, #dashboard h2 { font-family: var(--home-display); font-style: normal; overflow-wrap: anywhere; min-width: 0; }
 .home-header {
@@ -41,6 +42,7 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
 .brand-chevron { margin-right: 14px; color: var(--home-accent); font-family: var(--home-mono); font-size: 30px; }
 .home-search { max-width: 480px; min-width: 160px; flex: 1; display: flex; align-items: center; gap: 12px; background: var(--home-bg); border: 1px solid var(--home-line); border-radius: 9px; padding: 0 14px; color: var(--home-muted); }
 #dashboard .home-search input { min-width: 0; width: 100%; height: 44px; border: none; padding: 0; background: transparent; color: var(--home-ink); box-shadow: none; }
+#dashboard .home-search input:focus-visible { outline: none; }
 .home-search kbd { white-space: nowrap; font-size: 11px; padding: 1px 5px; border: 1px solid var(--home-line); border-radius: 4px; font-family: var(--home-mono); }
 #dashboard .home-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 8px 15px; border: 1px solid var(--home-line); border-radius: 7px; background: var(--home-surface); color: var(--home-ink); white-space: nowrap; font-size: 13px; font-weight: 600; }
 #dashboard .home-button:hover { background: var(--home-bg); border-color: var(--home-muted); }
