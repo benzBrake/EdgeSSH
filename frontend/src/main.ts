@@ -255,6 +255,7 @@ function element<T extends HTMLElement>(id: string): T {
 const ui = {
   panel: element<HTMLElement>('connection-panel'),
   panelToggle: element<HTMLButtonElement>('panel-toggle'),
+  panelClose: element<HTMLButtonElement>('panel-close'),
   panelScrim: element<HTMLButtonElement>('panel-scrim'),
   profileList: element<HTMLElement>('profile-list'),
   profileCount: element<HTMLElement>('profile-count'),
@@ -559,6 +560,10 @@ if (!isSessionFrame) {
     if (!message.sessionId || !message.type) return;
     const session = embeddedSessions.get(message.sessionId);
     if (!session || event.source !== session.iframe.contentWindow) return;
+    if (message.type === 'close-empty') {
+      closeEmbeddedSession(message.sessionId);
+      return;
+    }
     if (message.type === 'state' && message.state) session.state = message.state;
     if (message.type === 'label' && message.label && !session.fixedLabel) {
       session.label = message.label;
@@ -1374,6 +1379,22 @@ function setPanelOpen(open: boolean): void {
   ui.panelToggle.title = toggleLabel;
   ui.panelScrim.hidden = !view.scrimVisible;
   requestAnimationFrame(() => fitTerminal(true));
+}
+
+function closeConnectionPanel(): void {
+  const query = new URLSearchParams(location.search);
+  const temporaryDraft = isSessionFrame
+    && Boolean(embeddedSessionId)
+    && window.parent !== window
+    && !query.get('profileId')
+    && connectionState === 'idle';
+  if (temporaryDraft) {
+    setPanelOpen(false);
+    postSessionEvent('close-empty');
+    return;
+  }
+  setPanelOpen(false);
+  if (!isSessionFrame) ui.panelToggle.focus();
 }
 
 function updateUptime(): void {
@@ -2268,9 +2289,11 @@ ui.panelToggle.addEventListener('click', () => {
     else ui.host.focus();
   });
 });
+ui.panelClose.addEventListener('click', () => {
+  closeConnectionPanel();
+});
 ui.panelScrim.addEventListener('click', () => {
-  setPanelOpen(false);
-  ui.panelToggle.focus();
+  closeConnectionPanel();
 });
 ui.emptyConnect.addEventListener('click', () => {
   setPanelOpen(true);
@@ -2346,8 +2369,7 @@ window.addEventListener('beforeunload', () => {
 
 document.addEventListener('keydown', (keyEvent) => {
   if (keyEvent.key === 'Escape' && panelOpen && !ui.hostKeyDialog.open) {
-    setPanelOpen(false);
-    ui.panelToggle.focus();
+    closeConnectionPanel();
   }
 });
 
