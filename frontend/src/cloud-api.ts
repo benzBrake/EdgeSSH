@@ -30,7 +30,7 @@ export interface CloudHost {
   updatedAt: number;
 }
 
-export interface Credentials { password?: string; privateKey?: string }
+export interface Credentials { password?: string; privateKey?: string; privateKeyPassphrase?: string }
 export type HostInput = Omit<CloudHost, 'id' | 'location' | 'system' | 'hasCredential' | 'updatedAt'> & Credentials;
 
 export class APIError extends Error {

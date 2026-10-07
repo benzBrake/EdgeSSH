@@ -19,6 +19,78 @@ async function dashboardFixture(page: Page) {
   await page.goto('/');
 }
 
+test('生成预览、保护密码和使用下载始终对应同一公钥', async ({ page }) => {
+  await dashboardFixture(page);
+  await page.getByRole('button', { name: '编辑 Tokyo production' }).click();
+  await page.locator('#generate-key').click();
+  const preview = page.locator('#key-preview-dialog');
+  const publicPreview = page.locator('#key-preview-public');
+  await expect(publicPreview).toHaveValue(/^ssh-ed25519 /);
+  const publicKey = await publicPreview.inputValue();
+  expect(Buffer.from(publicKey.split(' ')[1], 'base64').length).toBe(51);
+  await page.locator('#key-protect').check();
+  await page.locator('#use-download-public-key').click();
+  await expect(page.locator('#key-preview-error')).toContainText('请设置');
+  await page.locator('#key-preview-passphrase').fill('browser-test-passphrase');
+  await page.locator('#key-preview-passphrase').blur();
+  await expect(publicPreview).toHaveValue(publicKey);
+  const downloaded = page.waitForEvent('download');
+  await page.locator('#use-download-public-key').click();
+  const download = await downloaded;
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
+  expect(Buffer.concat(chunks).toString().trim()).toBe(publicKey);
+  await expect(preview).toBeHidden();
+  await expect(page.locator('#cloud-host-form [name="privateKeyPassphrase"]')).toHaveValue('browser-test-passphrase');
+  const privateKey = await page.locator('#cloud-host-form [name="privateKey"]').inputValue();
+  const raw = Buffer.from(privateKey.split('\n').slice(1, -2).join(''), 'base64');
+  let offset = 15;
+  const read = () => { const length = raw.readUInt32BE(offset); offset += 4; const value = raw.subarray(offset, offset + length); offset += length; return value; };
+  expect(read().toString()).toBe('aes256-ctr'); read(); read(); offset += 4;
+  expect(read().toString('base64')).toBe(publicKey.split(' ')[1]);
+  await page.locator('#cloud-host-form [name="authMethod"]').selectOption('password');
+  await expect(page.locator('#cloud-host-form [name="privateKey"]')).toHaveValue('');
+  await expect(page.locator('#cloud-host-form [name="privateKeyPassphrase"]')).toHaveValue('');
+});
+
+test('无密码生成并复制使用预览中的公钥', async ({ page }) => {
+  await dashboardFixture(page);
+  await page.getByRole('button', { name: '编辑 Tokyo production' }).click();
+  await page.locator('#generate-key').click();
+  await expect(page.locator('#key-preview-public')).toHaveValue(/^ssh-ed25519 /);
+  const publicKey = await page.locator('#key-preview-public').inputValue();
+  await page.evaluate(() => { Object.defineProperty(navigator.clipboard, 'writeText', { value: async (value: string) => { document.body.dataset.copiedPublicKey = value; } }); });
+  await page.locator('#use-copy-public-key').click();
+  await expect(page.locator('#key-preview-dialog')).toBeHidden();
+  expect(await page.evaluate(() => document.body.dataset.copiedPublicKey)).toBe(publicKey);
+  const privateKey = await page.locator('#cloud-host-form [name="privateKey"]').inputValue();
+  const raw = Buffer.from(privateKey.split('\n').slice(1, -2).join(''), 'base64');
+  expect(raw.subarray(19, 23).toString()).toBe('none');
+  await expect(page.locator('#cloud-host-form [name="privateKeyPassphrase"]')).toHaveValue('');
+  await expect(page.locator('#cloud-host-form [name="clearPrivateKeyPassphrase"]')).toBeChecked();
+});
+
+test('取消生成和复制失败均保留原私钥', async ({ page }) => {
+  await dashboardFixture(page);
+  await page.getByRole('button', { name: '编辑 Tokyo production' }).click();
+  const privateInput = page.locator('#cloud-host-form [name="privateKey"]');
+  await privateInput.fill('existing-test-key');
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page.locator('#generate-key').click();
+  await expect(page.locator('#key-preview-dialog')).toBeHidden();
+  await expect(privateInput).toHaveValue('existing-test-key');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('#generate-key').click();
+  await expect(page.locator('#key-preview-public')).toHaveValue(/^ssh-ed25519 /);
+  await page.evaluate(() => { Object.defineProperty(navigator.clipboard, 'writeText', { value: async () => { throw new Error('clipboard unavailable'); } }); });
+  await page.locator('#use-copy-public-key').click();
+  await expect(page.locator('#key-preview-error')).toContainText('clipboard unavailable');
+  await expect(privateInput).toHaveValue('existing-test-key');
+  await page.locator('#key-preview-dialog').getByRole('button', { name: '取消', exact: true }).click();
+  await expect(privateInput).toHaveValue('existing-test-key');
+});
+
 test('主机列表编辑打开正确弹窗并回填资料', async ({ page }) => {
   await dashboardFixture(page);
 

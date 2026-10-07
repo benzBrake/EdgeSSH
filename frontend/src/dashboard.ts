@@ -7,6 +7,7 @@ import { countryFlag } from './flags';
 import { systemIcon } from './os-icons';
 import { isDemoMode } from './demo-hosts';
 import './dashboard.css';
+import { generateEd25519KeyPair } from './ssh-keygen';
 
 interface DashboardActions {
   files: FilePage;
@@ -45,6 +46,11 @@ export class Dashboard {
   private authenticated = false;
   private returnFocus?: HTMLElement;
   private readonly dialog: HTMLDialogElement;
+  private readonly keyPreviewDialog: HTMLDialogElement;
+  private previewPair?: CryptoKeyPair;
+  private previewPairPromise?: Promise<CryptoKeyPair>;
+  private previewRevision = 0;
+  private previewBusy = false;
   private readonly form: HTMLFormElement;
   private readonly forwarding = new ForwardPage();
 
@@ -102,7 +108,8 @@ export class Dashboard {
             <label>端口<input name="port" type="number" min="1" max="65535" value="22" required></label>
             <label class="wide">认证方式<select name="authMethod"><option value="password">密码</option><option value="publickey">OpenSSH 私钥</option></select></label>
             <label class="wide" id="cloud-password-field">密码<input name="password" type="password" maxlength="4096" autocomplete="new-password"><small class="credential-help">密码会由 Worker 加密后保存。</small></label>
-            <label class="wide" id="cloud-key-field" hidden>私钥<textarea name="privateKey" rows="5" maxlength="65536" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" spellcheck="false"></textarea><small class="credential-help">仅支持未加密的 OpenSSH 私钥。</small></label>
+            <label class="wide" id="cloud-key-field" hidden><span class="field-label-row"><span>私钥</span><button type="button" class="mini-action" id="generate-key" title="生成新的 Ed25519 密钥对">生成密钥</button></span><textarea name="privateKey" rows="5" maxlength="131072" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" spellcheck="false"></textarea><small class="credential-help">支持未加密或带密码的 OpenSSH 私钥。</small></label>
+            <label class="wide" id="cloud-key-passphrase-field" hidden>私钥密码<input name="privateKeyPassphrase" type="password" maxlength="4096" autocomplete="new-password"><small class="credential-help">可选；这是私钥口令，不是服务器登录密码。</small><span class="credential-clear"><input name="clearPrivateKeyPassphrase" type="checkbox">清除已保存的私钥密码</span></label>
           </div>
           <details class="host-advanced"><summary>高级设置</summary><div class="host-form-grid">
             <label class="wide">主机指纹<input name="fingerprint" placeholder="SHA256:…，首次连接时确认" maxlength="128"></label>
@@ -115,11 +122,34 @@ export class Dashboard {
           <div class="dialog-actions"><button class="home-button close-dialog" type="button">取消</button><button class="home-button primary" id="save-cloud-host" type="submit">加密保存</button></div>
         </form>
       </dialog>`;
+    this.root.insertAdjacentHTML('beforeend', `
+      <dialog id="key-preview-dialog" class="host-dialog key-preview-dialog" aria-labelledby="key-preview-title">
+        <form id="key-preview-form" method="dialog" autocomplete="off">
+          <div class="dialog-heading"><div><p class="home-eyebrow">OPENSSH KEY PAIR</p><h2 id="key-preview-title">预览密钥对</h2></div><button type="button" class="home-button close-key-preview" aria-label="关闭">×</button></div>
+          <p class="dialog-intro">确认后私钥会填入主机表单。公钥可直接复制到服务器的 <code>authorized_keys</code>。</p>
+          <label class="key-protect-toggle"><input id="key-protect" type="checkbox">保护私钥</label>
+          <label id="key-preview-passphrase-field" class="wide">私钥密码<input id="key-preview-passphrase" type="password" maxlength="4096" autocomplete="new-password" disabled><small>仅用于保护生成的私钥，不是服务器登录密码。</small></label>
+          <label class="wide">私钥预览<textarea id="key-preview-private" rows="6" readonly spellcheck="false"></textarea></label>
+          <label class="wide">公钥预览<textarea id="key-preview-public" rows="3" readonly spellcheck="false"></textarea></label>
+          <p id="key-preview-error" class="host-form-error" role="alert" hidden></p>
+          <div class="dialog-actions key-preview-actions"><button class="home-button close-key-preview" type="button">取消</button><button class="home-button primary" id="use-copy-public-key" type="button">使用并复制公钥</button><button class="home-button primary" id="use-download-public-key" type="button">使用并下载公钥</button></div>
+        </form>
+      </dialog>`);
     document.body.prepend(this.root);
     this.get('.home-layout').append(this.actions.files.root);
     this.get('.home-layout').append(this.actions.snippets.page);
     this.get('.home-layout').append(this.forwarding.root);
     this.dialog = this.get<HTMLDialogElement>('#host-editor-dialog');
+    this.keyPreviewDialog = this.get<HTMLDialogElement>('#key-preview-dialog');
+    this.keyPreviewDialog.addEventListener('close', () => {
+      this.previewPair = undefined;
+      this.previewPairPromise = undefined;
+      this.previewRevision++;
+      this.get<HTMLTextAreaElement>('#key-preview-private').value = '';
+      this.get<HTMLTextAreaElement>('#key-preview-public').value = '';
+      this.get<HTMLInputElement>('#key-preview-passphrase').value = '';
+    });
+    this.keyPreviewDialog.addEventListener('cancel', (event) => { if (this.previewBusy) event.preventDefault(); });
     this.form = this.get<HTMLFormElement>('#cloud-host-form');
     this.get('#account-action').addEventListener('click', async (event) => {
       if (!this.authenticated) return;
@@ -139,6 +169,11 @@ export class Dashboard {
     this.root.querySelectorAll('.close-dialog').forEach((button) => button.addEventListener('click', () => this.closeEditor()));
     this.dialog.addEventListener('cancel', (event) => { if (this.busy) event.preventDefault(); });
     this.dialog.addEventListener('close', () => { this.form.reset(); this.editing = undefined; this.returnFocus?.focus(); });
+    this.root.querySelectorAll('.close-key-preview').forEach((button) => button.addEventListener('click', () => this.closeKeyPreview()));
+    this.get('#key-protect').addEventListener('change', () => { this.updateKeyProtection(); void this.refreshKeyPreview(); });
+    this.get('#key-preview-passphrase').addEventListener('change', () => void this.refreshKeyPreview());
+    this.get('#use-copy-public-key').addEventListener('click', () => void this.useGeneratedKey('copy'));
+    this.get('#use-download-public-key').addEventListener('click', () => void this.useGeneratedKey('download'));
     this.get('#host-search').addEventListener('input', () => this.renderList());
     this.get('#refresh-hosts').addEventListener('click', () => void this.refresh());
     for (const id of ['#rail-overview', '#rail-hosts']) this.get(id).addEventListener('click', () => {
@@ -156,6 +191,7 @@ export class Dashboard {
       this.actions.quickConnect();
     });
     this.field('authMethod').addEventListener('change', () => this.updateCredentialFields());
+    this.get('#generate-key').addEventListener('click', () => void this.openKeyPreview());
     this.form.addEventListener('submit', (event) => { event.preventDefault(); void this.save(); });
     this.get('#pause-globe').addEventListener('click', () => {
       this.paused = !this.paused;
@@ -440,7 +476,7 @@ export class Dashboard {
   private openEditor(host?: CloudHost): void {
     if (this.busy) return;
     this.returnFocus = document.activeElement as HTMLElement;
-    this.editing = host; this.form.reset();
+    this.editing = host; this.form.reset(); this.publicKey = '';
     this.get('#host-dialog-title').textContent = host ? '编辑主机' : '添加主机';
     for (const name of ['name', 'group', 'host', 'port', 'username', 'authMethod', 'fingerprint', 'initialCommand', 'termType', 'encoding'] as const) {
       if (host) this.field(name).value = String(host[name]);
@@ -457,8 +493,102 @@ export class Dashboard {
   private closeEditor(): void { if (!this.busy) this.dialog.close(); }
   private updateCredentialFields(): void {
     const key = this.field('authMethod').value === 'publickey';
+    if (key) {
+      this.field('password').value = '';
+    } else {
+      this.field('privateKey').value = '';
+      this.field('privateKeyPassphrase').value = '';
+      (this.field('clearPrivateKeyPassphrase') as HTMLInputElement).checked = false;
+      this.publicKey = '';
+    }
     this.get('#cloud-password-field').hidden = key;
     this.get('#cloud-key-field').hidden = !key;
+    this.get('#cloud-key-passphrase-field').hidden = !key;
+  }
+
+  private async openKeyPreview(): Promise<void> {
+    const privateKey = this.field('privateKey').value.trim();
+    if (privateKey && !window.confirm('当前私钥内容将在使用新密钥时被覆盖，是否继续？')) return;
+    const protect = this.get<HTMLInputElement>('#key-protect');
+    const passphrase = this.get<HTMLInputElement>('#key-preview-passphrase');
+    protect.checked = Boolean(this.field('privateKeyPassphrase').value);
+    passphrase.value = this.field('privateKeyPassphrase').value;
+    this.updateKeyProtection();
+    this.previewPair = undefined;
+    this.previewPairPromise = crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']) as Promise<CryptoKeyPair>;
+    this.keyPreviewDialog.showModal();
+    await this.refreshKeyPreview();
+  }
+
+  private updateKeyProtection(): void {
+    const enabled = this.get<HTMLInputElement>('#key-protect').checked;
+    const passphrase = this.get<HTMLInputElement>('#key-preview-passphrase');
+    passphrase.disabled = !enabled;
+    if (!enabled) passphrase.value = '';
+  }
+
+  private async refreshKeyPreview(): Promise<void> {
+    if (this.previewBusy) return;
+    const revision = ++this.previewRevision;
+    const privatePreview = this.get<HTMLTextAreaElement>('#key-preview-private');
+    const publicPreview = this.get<HTMLTextAreaElement>('#key-preview-public');
+    const errorNode = this.get('#key-preview-error');
+    privatePreview.value = '生成中…'; publicPreview.value = ''; errorNode.hidden = true;
+    try {
+      const dialog = this.keyPreviewDialog;
+      const pair = this.previewPair ?? await this.previewPairPromise;
+      if (!dialog.open || revision !== this.previewRevision || !pair) return;
+      this.previewPair = pair;
+      const result = await generateEd25519KeyPair(this.get<HTMLInputElement>('#key-protect').checked ? this.get<HTMLInputElement>('#key-preview-passphrase').value : '', this.field('host').value, this.field('username').value, pair);
+      if (!dialog.open || revision !== this.previewRevision) return;
+      privatePreview.value = result.privateKey;
+      publicPreview.value = result.publicKey;
+    } catch (error) {
+      if (revision !== this.previewRevision || !this.keyPreviewDialog.open) return;
+      privatePreview.value = ''; errorNode.textContent = error instanceof Error ? error.message : '生成密钥失败。'; errorNode.hidden = false;
+    }
+  }
+
+  private publicKey = '';
+
+  private closeKeyPreview(): void { if (!this.previewBusy && this.keyPreviewDialog.open) this.keyPreviewDialog.close(); }
+
+  private async useGeneratedKey(action: 'copy' | 'download'): Promise<void> {
+    if (this.previewBusy || !this.previewPair) return;
+    const protectedKey = this.get<HTMLInputElement>('#key-protect').checked;
+    const passphrase = protectedKey ? this.get<HTMLInputElement>('#key-preview-passphrase').value : '';
+    if (protectedKey && !passphrase) {
+      this.get('#key-preview-error').textContent = '请设置用于保护私钥的密码。';
+      this.get('#key-preview-error').hidden = false;
+      this.get<HTMLInputElement>('#key-preview-passphrase').focus();
+      return;
+    }
+    this.previewBusy = true;
+    this.previewRevision++;
+    const protectInput = this.get<HTMLInputElement>('#key-protect');
+    const passphraseInput = this.get<HTMLInputElement>('#key-preview-passphrase');
+    protectInput.disabled = true;
+    passphraseInput.disabled = true;
+    try {
+      const { privateKey, publicKey } = await generateEd25519KeyPair(passphrase, this.field('host').value, this.field('username').value, this.previewPair);
+      if (action === 'copy') {
+        await navigator.clipboard.writeText(publicKey);
+        this.notice('公钥已复制，可粘贴到服务器的 authorized_keys。');
+      }
+      this.field('privateKey').value = privateKey;
+      this.field('privateKeyPassphrase').value = passphrase;
+      (this.field('clearPrivateKeyPassphrase') as HTMLInputElement).checked = !passphrase;
+      this.publicKey = publicKey;
+      if (action === 'download') this.downloadPublicKey();
+      this.keyPreviewDialog.close();
+    } catch (error) {
+      this.get('#key-preview-error').textContent = error instanceof Error ? error.message : '使用密钥失败，请重试。';
+      this.get('#key-preview-error').hidden = false;
+    } finally {
+      this.previewBusy = false;
+      protectInput.disabled = false;
+      this.updateKeyProtection();
+    }
   }
 
   private async save(): Promise<void> {
@@ -473,6 +603,10 @@ export class Dashboard {
     };
     const credential = input.authMethod === 'password' ? 'password' : 'privateKey';
     if (value(credential) || !this.editing || this.editing.authMethod !== input.authMethod) input[credential] = value(credential);
+    const clearPassphrase = (this.field('clearPrivateKeyPassphrase') as HTMLInputElement).checked;
+    if (input.authMethod === 'publickey' && (value('privateKeyPassphrase') || clearPassphrase || !this.editing || this.editing.authMethod !== input.authMethod)) {
+      input.privateKeyPassphrase = value('privateKeyPassphrase');
+    }
     try {
       await saveHost(input, this.editing?.id);
       this.dialog.close(); await this.refresh();
@@ -480,5 +614,13 @@ export class Dashboard {
       this.get('#host-form-error').textContent = error instanceof Error ? error.message : '保存失败。';
       this.get('#host-form-error').hidden = false;
     } finally { this.busy = false; button.disabled = false; button.textContent = '加密保存'; }
+  }
+
+  private downloadPublicKey(): void {
+    if (!this.publicKey) return;
+    const host = this.field('host').value.trim().replace(/[^a-zA-Z0-9._-]+/g, '-') || 'edgessh';
+    const blob = new Blob([`${this.publicKey}\n`], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${host}.pub`;
+    link.click(); URL.revokeObjectURL(link.href);
   }
 }

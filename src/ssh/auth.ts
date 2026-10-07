@@ -1,4 +1,5 @@
 import { SSH_MSG_USERAUTH_REQUEST } from '../types';
+import bcryptPbkdf from '../vendor/bcrypt-pbkdf.js';
 import { encodeString, concat, readUint32, toBufferSource } from './utils';
 import {
   buildKeyboardInteractiveAuthRequest,
@@ -70,8 +71,9 @@ export class SSHAuth {
     privateKeyPEM: string,
     sessionID: Uint8Array,
     serverSigAlgs?: string[],
+    passphrase?: string,
   ): Promise<Uint8Array> {
-    const { signingKey, publicKeyBlob, keyType, rsaPkcs8 } = await this.parsePrivateKey(privateKeyPEM);
+    const { signingKey, publicKeyBlob, keyType, rsaPkcs8 } = await this.parsePrivateKey(privateKeyPEM, passphrase);
 
     let requestAlgo = keyType;
     let signatureAlgo = keyType;
@@ -192,7 +194,7 @@ export class SSHAuth {
   /**
    * Parse an OpenSSH private key and detect its type.
    */
-  private static async parsePrivateKey(pem: string): Promise<ParsedKey> {
+  private static async parsePrivateKey(pem: string, passphrase?: string): Promise<ParsedKey> {
     const match = /^-----BEGIN OPENSSH PRIVATE KEY-----\r?\n([A-Za-z0-9+/=\r\n]+)\r?\n-----END OPENSSH PRIVATE KEY-----$/.exec(pem.trim());
     if (!match) throw new Error('Unsupported private key format; only OpenSSH keys are accepted');
     const b64 = match[1].replace(/\r?\n/g, '');
@@ -225,7 +227,7 @@ export class SSHAuth {
     const cipherLen = readUint32(raw, offset); offset += 4;
     if (offset + cipherLen > raw.length) throw new Error('Malformed private key cipher field');
     const cipher = this.decodeText(raw.slice(offset, offset + cipherLen), 'private key cipher'); offset += cipherLen;
-    if (cipher !== 'none') throw new Error('Encrypted private keys are not supported; remove the passphrase with ssh-keygen -p');
+    if (cipher !== 'none' && cipher !== 'aes256-ctr') throw new Error(`Unsupported OpenSSH private key cipher: ${cipher}`);
 
     // kdfname
     if (offset + 4 > raw.length) throw new Error('Malformed private key KDF length');
@@ -233,18 +235,22 @@ export class SSHAuth {
     if (offset + kdfLen > raw.length) throw new Error('Malformed private key KDF field');
     const kdf = this.decodeText(raw.slice(offset, offset + kdfLen), 'private key KDF');
     offset += kdfLen;
-    if (kdf !== 'none') {
-      throw new Error('Malformed unencrypted private key: KDF must be none');
-    }
+    if (kdf !== 'none' && kdf !== 'bcrypt') throw new Error(`Unsupported OpenSSH private key KDF: ${kdf}`);
 
     // kdfoptions
     if (offset + 4 > raw.length) throw new Error('Malformed private key KDF options length');
     const kdfOptLen = readUint32(raw, offset); offset += 4;
     if (offset + kdfOptLen > raw.length) throw new Error('Malformed private key KDF options');
-    if (kdfOptLen !== 0) {
-      throw new Error('Malformed unencrypted private key: KDF options must be empty');
-    }
+    const kdfOptions = raw.slice(offset, offset + kdfOptLen);
     offset += kdfOptLen;
+
+    if (cipher === 'none' || kdf === 'none') {
+      if (cipher !== 'none' || kdf !== 'none' || kdfOptLen !== 0) throw new Error('Malformed unencrypted private key parameters');
+      if (passphrase) throw new Error('A passphrase was supplied for an unencrypted private key');
+    } else {
+      if (!passphrase) throw new Error('A passphrase is required for the encrypted private key');
+      if (cipher !== 'aes256-ctr' || kdf !== 'bcrypt') throw new Error('Unsupported encrypted OpenSSH private key parameters');
+    }
 
     // number of keys
     if (offset + 4 > raw.length) throw new Error('Malformed private key count');
@@ -262,9 +268,24 @@ export class SSHAuth {
     if (offset + 4 > raw.length) throw new Error('Malformed private key section length');
     const privSecLen = readUint32(raw, offset); offset += 4;
     if (offset + privSecLen > raw.length) throw new Error('Malformed private key section');
-    const privSection = raw.slice(offset, offset + privSecLen);
+    let privSection = raw.slice(offset, offset + privSecLen);
     offset += privSecLen;
     if (offset !== raw.length) throw new Error('Trailing data after private key section');
+    if (cipher === 'aes256-ctr') {
+      if (kdfOptions.length < 4) throw new Error('Malformed bcrypt KDF options');
+      const saltLen = readUint32(kdfOptions, 0);
+      if (saltLen < 16 || saltLen > 1 << 20 || 4 + saltLen + 4 !== kdfOptions.length) throw new Error('Malformed bcrypt KDF salt');
+      const salt = kdfOptions.slice(4, 4 + saltLen);
+      const rounds = readUint32(kdfOptions, 4 + saltLen);
+      if (rounds < 1 || rounds > 1_000_000) throw new Error('Invalid bcrypt KDF rounds');
+      const derived = new Uint8Array(48);
+      const password = new TextEncoder().encode(passphrase!);
+      if (bcryptPbkdf.pbkdf(password, password.length, salt, salt.length, derived, derived.length, rounds) !== 0) throw new Error('Unable to derive OpenSSH private key encryption key');
+      const key = await crypto.subtle.importKey('raw', derived.slice(0, 32), 'AES-CTR', false, ['decrypt']);
+      try {
+        privSection = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CTR', counter: derived.slice(32), length: 128 }, key, privSection));
+      } catch { throw new Error('Invalid private key passphrase or encrypted data'); }
+    }
 
     // Parse private section: checkint1, checkint2, keytype, ...
     let po = 0;
@@ -282,12 +303,13 @@ export class SSHAuth {
     const keyType = this.decodeText(privSection.slice(po, po + ktLen), 'private key type'); po += ktLen;
 
     // Parse based on key type
+    const blockSize = cipher === 'none' ? 8 : 16;
     if (keyType === SSH_ED25519) {
-      return this.parseEd25519Key(privSection, po, publicKeyBlob);
+      return this.parseEd25519Key(privSection, po, publicKeyBlob, blockSize);
     } else if (keyType === SSH_RSA) {
-      return this.parseRSAKey(privSection, po, publicKeyBlob);
+      return this.parseRSAKey(privSection, po, publicKeyBlob, blockSize);
     } else if (keyType.startsWith('ecdsa-sha2-')) {
-      return this.parseECDSAKey(privSection, po, keyType, publicKeyBlob);
+      return this.parseECDSAKey(privSection, po, keyType, publicKeyBlob, blockSize);
     } else {
       throw new Error(`Unsupported key type: ${keyType}`);
     }
@@ -300,6 +322,7 @@ export class SSHAuth {
     privSection: Uint8Array,
     offset: number,
     outerPublicKeyBlob: Uint8Array,
+    blockSize: number,
   ): Promise<ParsedKey> {
     let po = offset;
 
@@ -321,7 +344,7 @@ export class SSHAuth {
     }
 
     this.validateEd25519PublicBlob(outerPublicKeyBlob, pubKeyRaw);
-    this.validatePrivateSectionTail(privSection, po);
+    this.validatePrivateSectionTail(privSection, po, blockSize);
 
     const seed = privKeyRaw.slice(0, 32);
 
@@ -346,6 +369,7 @@ export class SSHAuth {
     privSection: Uint8Array,
     offset: number,
     outerPublicKeyBlob: Uint8Array,
+    blockSize: number,
   ): Promise<ParsedKey> {
     let po = offset;
 
@@ -364,7 +388,7 @@ export class SSHAuth {
 
     this.validateRSAPublicBlob(outerPublicKeyBlob, e, n);
     this.validateRSAComponents(n, e, d, iqmp, p, q);
-    this.validatePrivateSectionTail(privSection, po);
+    this.validatePrivateSectionTail(privSection, po, blockSize);
 
     const pkcs8 = this.buildRSAPKCS8(n, e, d, p, q, iqmp);
 
@@ -383,6 +407,7 @@ export class SSHAuth {
     offset: number,
     keyType: string,
     outerPublicKeyBlob: Uint8Array,
+    blockSize: number,
   ): Promise<ParsedKey> {
     let po = offset;
 
@@ -433,7 +458,7 @@ export class SSHAuth {
       throw new Error('Malformed ECDSA public key point');
     }
     this.validateECDSAPublicBlob(outerPublicKeyBlob, keyType, curve, pubKeyRaw);
-    this.validatePrivateSectionTail(privSection, po);
+    this.validatePrivateSectionTail(privSection, po, blockSize);
 
     const pkcs8 = this.buildECDSAPKCS8(namedCurve, privKeyRaw);
 
@@ -504,10 +529,11 @@ export class SSHAuth {
     }
   }
 
-  private static validatePrivateSectionTail(section: Uint8Array, offset: number): void {
+  private static validatePrivateSectionTail(section: Uint8Array, offset: number, blockSize: number): void {
     const comment = this.readSSHString(section, offset, 'private key comment');
     const paddingLength = section.length - comment.offset;
-    if (section.length % 8 !== 0 || paddingLength > 7) {
+    // OpenSSH appends 1..N until aligned; an aligned payload needs no padding.
+    if (section.length % blockSize !== 0 || paddingLength > blockSize) {
       throw new Error('Malformed OpenSSH private key padding');
     }
     for (let i = 0; i < paddingLength; i++) {

@@ -54,6 +54,7 @@ interface ConnectionConfig {
   password?: string;
   authMethod: AuthMethod;
   privateKey?: string;
+  privateKeyPassphrase?: string;
   cols: number;
   rows: number;
   term: string;
@@ -89,6 +90,7 @@ interface WSSHOptions {
   password?: string;
   privatekey?: string;
   privateKey?: string;
+  privateKeyPassphrase?: string;
   command?: string;
   term?: string;
   encoding?: string;
@@ -113,7 +115,7 @@ declare global {
 
 const THEME_STORAGE_KEY = 'workers-webssh.theme';
 const LANGUAGE_STORAGE_KEY = 'workers-webssh.language';
-const MAX_KEY_BYTES = 65_536;
+const MAX_KEY_BYTES = 131_072;
 const PING_INTERVAL_MS = 25_000;
 const CLIENT_CLOSE_SESSION_ERROR = 4000;
 const SERVER_CLOSE_AUTH_DEFECT = 4001;
@@ -269,6 +271,7 @@ const ui = {
   revealPassword: element<HTMLButtonElement>('reveal-password'),
   keyField: element<HTMLElement>('key-field'),
   privateKey: element<HTMLTextAreaElement>('private-key'),
+  privateKeyPassphrase: element<HTMLInputElement>('private-key-passphrase'),
   keyFile: element<HTMLInputElement>('key-file'),
   keyFileName: element<HTMLElement>('key-file-name'),
   initialCommand: element<HTMLInputElement>('initial-command'),
@@ -435,7 +438,7 @@ let terminalTools: TerminalToolsController | undefined;
 let sshReconnectManager: WebSocketReconnectManager | null = null;
 let reconnectParams: {
   host: string; port: number; username: string; authMethod: string;
-  password?: string; privateKey?: string; pinnedKey?: string;
+  password?: string; privateKey?: string; privateKeyPassphrase?: string; pinnedKey?: string;
   term: string; encoding: string;
 } | null = null;
 let demoTerminal = false;
@@ -960,6 +963,7 @@ function setAuthMethod(method: AuthMethod): void {
   if (radio) radio.checked = true;
   ui.passwordField.hidden = method !== 'password';
   ui.keyField.hidden = method !== 'publickey';
+  if (method === 'password') ui.privateKeyPassphrase.value = '';
 }
 
 function cancelHistoryPasswordLoad(): void {
@@ -979,6 +983,7 @@ function resetPasswordField(): void {
 function clearPrivateKeyFields(): void {
   keyFileReadGeneration++;
   ui.privateKey.value = '';
+  ui.privateKeyPassphrase.value = '';
   ui.keyFile.value = '';
   ui.keyFileName.textContent = bilingual('未选择文件', 'No file selected');
 }
@@ -1040,7 +1045,7 @@ function readProfileFromForm(password: string): Promise<SavedProfile> {
     updatedAt: Date.now(),
   };
   if (profile.authMethod === 'password') profile.password = password;
-  else profile.privateKey = ui.privateKey.value;
+  else { profile.privateKey = ui.privateKey.value; profile.privateKeyPassphrase = ui.privateKeyPassphrase.value; }
   return Promise.resolve(profile);
 }
 
@@ -1064,7 +1069,8 @@ function validateConnection(): string | null {
     const key = ui.privateKey.value.trim();
     if (!key && !isDemoMode()) return bilingual('请粘贴或选择未加密的 OpenSSH 私钥。', 'Paste or choose an unencrypted OpenSSH private key.');
     if (new TextEncoder().encode(key).length > MAX_KEY_BYTES) return bilingual('私钥大于 64 KiB。', 'The private key is larger than 64 KiB.');
-    if (key && !key.includes('BEGIN OPENSSH PRIVATE KEY') && !isDemoMode()) return bilingual('仅支持未加密的 OpenSSH 私钥。', 'Only unencrypted OpenSSH private keys are supported.');
+    if (key && !key.includes('BEGIN OPENSSH PRIVATE KEY') && !isDemoMode()) return bilingual('仅支持 OpenSSH 私钥格式。', 'Only OpenSSH private keys are supported.');
+    if (ui.privateKeyPassphrase.value.length > 4096) return bilingual('私钥密码不能超过 4096 个字符。', 'Private key passphrase cannot exceed 4096 characters.');
   }
   return null;
 }
@@ -1115,6 +1121,7 @@ async function applyProfile(profile: SavedProfile): Promise<void> {
   if (selectionUnchanged) {
     ui.password.value = credentials.password ?? '';
     ui.privateKey.value = credentials.privateKey ?? '';
+    ui.privateKeyPassphrase.value = credentials.privateKeyPassphrase ?? '';
   }
   setState(connectionState);
 }
@@ -1811,7 +1818,7 @@ function createSshReconnectFactory(): (attempt: number) => Promise<WebSocket> {
         term: params.term,
       };
       if (params.authMethod === 'password') config.password = params.password;
-      else config.privateKey = params.privateKey;
+      else { config.privateKey = params.privateKey; config.privateKeyPassphrase = params.privateKeyPassphrase; }
       if (params.pinnedKey) config.expectedFingerprint = params.pinnedKey;
 
       if (connectSentSockets.has(ws)) return;
@@ -1958,7 +1965,7 @@ async function connect(): Promise<void> {
     // Persist connection parameters so the reconnect factory can reuse them.
     reconnectParams = { host, port, username, authMethod: method, term, encoding: ui.encoding.value };
     if (method === 'password') reconnectParams.password = password;
-    else reconnectParams.privateKey = privateKey;
+    else { reconnectParams.privateKey = privateKey; reconnectParams.privateKeyPassphrase = ui.privateKeyPassphrase.value; }
     if (pinnedKey) reconnectParams.pinnedKey = pinnedKey;
 
     // Set up (or replace) the SSH reconnect manager.
@@ -1988,7 +1995,7 @@ async function connect(): Promise<void> {
         term,
       };
       if (method === 'password') config.password = password;
-      else config.privateKey = privateKey;
+      else { config.privateKey = privateKey; config.privateKeyPassphrase = ui.privateKeyPassphrase.value; }
       if (pinnedKey) config.expectedFingerprint = pinnedKey;
       if (connectSentSockets.has(activeSocket)) return;
       connectSentSockets.add(activeSocket);
@@ -2196,6 +2203,7 @@ function applyWSSHOptions(options: WSSHOptions): void {
   if (key !== undefined) {
     setAuthMethod('publickey');
     ui.privateKey.value = key;
+    ui.privateKeyPassphrase.value = options.privateKeyPassphrase ?? '';
   }
   if (options.command !== undefined) ui.initialCommand.value = options.command;
   if (options.term !== undefined) ui.termType.value = options.term;

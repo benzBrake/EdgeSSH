@@ -632,10 +632,10 @@ export class SSHSession {
       if (service.next !== payload.length || service.value !== 'ssh-userauth') throw new Error('Invalid SSH user authentication service acceptance');
       if (this.authRequestSent) throw new Error('Duplicate SSH user authentication service acceptance');
       const request = this.config.authMethod === 'publickey'
-        ? await SSHAuth.buildPublicKeyAuthRequest(this.config.username, this.config.privateKey!, this.sessionId!, this.serverSigAlgs)
+        ? await SSHAuth.buildPublicKeyAuthRequest(this.config.username, this.config.privateKey!, this.sessionId!, this.serverSigAlgs, this.config.privateKeyPassphrase)
         : SSHAuth.buildPasswordAuthRequest(this.config.username, this.config.password!);
       this.authRequestSent = true;
-      if (this.config.authMethod === 'publickey') this.config.privateKey = undefined;
+      if (this.config.authMethod === 'publickey') { this.config.privateKey = undefined; this.config.privateKeyPassphrase = undefined; }
       await this.sendEncrypted(request);
       return;
     }
@@ -671,6 +671,7 @@ export class SSHSession {
       if (!this.authRequestSent) throw new Error('SSH authentication completed before credentials were sent');
       this.config.password = undefined;
       this.config.privateKey = undefined;
+      this.config.privateKeyPassphrase = undefined;
       if (this.config.mode === 'forward') {
         this.phase = 'ready';
         this.startKeepalive();

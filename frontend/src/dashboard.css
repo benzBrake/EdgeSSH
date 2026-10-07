@@ -164,6 +164,19 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
 .host-form-grid .wide { grid-column: 1 / -1; }
 #dashboard .host-form-grid :is(input, select, textarea) { width: 100%; min-width: 0; min-height: 42px; padding: 9px 11px; border: 1px solid var(--home-line); border-radius: 6px; color: var(--home-ink); background: var(--home-bg); box-shadow: none; font-family: var(--home-font); }
 .host-form-grid small { color: var(--home-muted); font-size: 11px; }
+.field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mini-action { border: 1px solid var(--home-line); border-radius: 5px; padding: 3px 8px; color: var(--home-muted); background: transparent; font: inherit; font-size: 11px; cursor: pointer; }
+.mini-action:hover { color: var(--home-ink); border-color: var(--home-ink); }
+.key-preview-dialog { width: min(680px, calc(100vw - 32px)); }
+.key-preview-dialog code { color: var(--home-ink); }
+.key-preview-dialog label { display: flex; flex-direction: column; gap: 6px; color: var(--home-ink); font-size: 12px; margin-top: 14px; }
+.key-preview-dialog :is(input, textarea) { width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid var(--home-line); border-radius: 6px; color: var(--home-ink); background: var(--home-bg); font-family: var(--home-font); }
+.key-preview-dialog textarea { resize: vertical; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
+.key-protect-toggle { flex-direction: row !important; align-items: center; gap: 8px !important; }
+.key-protect-toggle input { width: auto !important; }
+.key-preview-actions { flex-wrap: wrap; }
+.credential-clear { display: flex; flex-direction: row; align-items: center; gap: 6px; color: var(--home-muted); font-size: 11px; }
+.credential-clear input { min-height: 0 !important; width: auto !important; }
 .host-advanced { margin-top: 20px; font-size: 12px; }
 .host-advanced summary { padding: 6px 0 12px; cursor: pointer; }
 .host-form-disclosure { margin-top: 18px; font-size: 11px; color: var(--home-muted); }

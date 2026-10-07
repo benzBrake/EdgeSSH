@@ -354,7 +354,7 @@ export class ForwardPage {
           username: host.username, authMethod: host.authMethod, ...credentials,
           ...(host.fingerprint ? { expectedFingerprint: host.fingerprint } : {}),
         }));
-        credentials.password = undefined; credentials.privateKey = undefined;
+        credentials.password = undefined; credentials.privateKey = undefined; credentials.privateKeyPassphrase = undefined;
         this.message('正在连接 SSH，首次连接请核对主机指纹…');
       });
       socket.addEventListener('message', (event) => {

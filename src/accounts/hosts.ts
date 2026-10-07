@@ -13,6 +13,7 @@ export interface HostPayload {
   authMethod: 'password' | 'publickey';
   password?: string;
   privateKey?: string;
+  privateKeyPassphrase?: string;
   initialCommand: string;
   termType: string;
   encoding: string;
@@ -27,7 +28,7 @@ const LOCATION_RETRY_MS = 24 * 60 * 60 * 1000;
 const LOCATION_REFRESH_BATCH = 8;
 
 function metadata(id: string, payload: HostPayload, updatedAt: number) {
-  const { password, privateKey, locationCheckedAt, ...safe } = payload;
+  const { password, privateKey, privateKeyPassphrase, locationCheckedAt, ...safe } = payload;
   return { ...safe, system: payload.system ?? null, id, updatedAt, hasCredential: password !== undefined || Boolean(privateKey) };
 }
 
@@ -57,7 +58,10 @@ function systemInfo(body: Record<string, unknown>): SystemInfo {
 function validate(body: Record<string, unknown>, previous?: HostPayload): HostPayload {
   const authMethod = body.authMethod;
   const credential = authMethod === 'publickey'
-    ? { privateKey: body.privateKey ?? (previous && previous.authMethod === authMethod ? previous.privateKey : undefined) }
+    ? {
+      privateKey: body.privateKey ?? (previous && previous.authMethod === authMethod ? previous.privateKey : undefined),
+      privateKeyPassphrase: body.privateKeyPassphrase ?? (previous && previous.authMethod === authMethod ? previous.privateKeyPassphrase : undefined),
+    }
     : { password: body.password ?? (previous && previous.authMethod === authMethod ? previous.password : undefined) };
   let connection;
   try {
@@ -74,6 +78,7 @@ function validate(body: Record<string, unknown>, previous?: HostPayload): HostPa
     group: text(body, 'group', 40, '个人').trim() || '个人',
     host: connection.host, port: connection.port, username: connection.username,
     authMethod: connection.authMethod, password: connection.password, privateKey: connection.privateKey,
+    privateKeyPassphrase: connection.privateKeyPassphrase,
     initialCommand: text(body, 'initialCommand', 4096), termType: connection.term,
     encoding, fingerprint: connection.expectedFingerprint ?? '', location: previous?.location ?? null,
     locationCheckedAt: previous?.locationCheckedAt,
@@ -118,7 +123,7 @@ export async function hostsRoute(request: Request, env: Env, accountId: string, 
     }
     previous = await decryptHost<HostPayload>(previousRow.encrypted_payload, env.ENCRYPTION_KEY, accountId, id);
     if (action === 'credentials' && request.method === 'POST') {
-      return json({ password: previous.password, privateKey: previous.privateKey });
+      return json({ password: previous.password, privateKey: previous.privateKey, privateKeyPassphrase: previous.privateKeyPassphrase });
     }
     if (action === 'location' && request.method === 'POST') {
       await refreshLocation(previous);
