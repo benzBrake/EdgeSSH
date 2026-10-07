@@ -2661,7 +2661,8 @@ button:disabled {
 .toast-region {
   position: fixed;
   top: calc(var(--topbar-height) + 12px);
-  right: max(18px, env(safe-area-inset-right));
+  left: calc(50% - env(safe-area-inset-right, 0px) / 2);
+  transform: translateX(-50%);
   z-index: 80;
   display: grid;
   width: min(340px, calc(100vw - 36px));
