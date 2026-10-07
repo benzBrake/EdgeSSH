@@ -1449,9 +1449,13 @@ function markReady(message = bilingual('交互式 Shell 已就绪', 'Interactive
   invalidateHistoryPasswordLoad();
   setState('connected');
   setPanelOpen(false);
-  profileSaveTask = saveConnectedProfile().catch(() => {
-    toast(bilingual('连接成功，但无法更新历史记录。', 'Connected, but the history could not be updated.'), 'error');
-  });
+  if (pendingHistory) {
+    profileSaveTask = saveConnectedProfile().catch(() => {
+      toast(bilingual('连接成功，但无法更新历史记录。', 'Connected, but the history could not be updated.'), 'error');
+    });
+  } else {
+    profileSaveTask = Promise.resolve();
+  }
   startTimers();
   updateConnectionStatus(messageTranslation(message));
   filePage?.setMessage('');
@@ -1930,7 +1934,12 @@ async function connect(): Promise<void> {
     const historyProfile = readProfileFromForm(password);
     // Resolve encryption during the SSH handshake so ready can usually save synchronously.
     void historyProfile.catch(() => undefined);
-    pendingHistory = { generation, target: currentTargetKey, profile: historyProfile };
+    // Connections started from an existing host already have a persisted
+    // profile. Only ad-hoc connections should create or update history.
+    const existingProfile = profiles.find((item) => passwordContext(item) === currentTargetKey);
+    pendingHistory = existingProfile
+      ? null
+      : { generation, target: currentTargetKey, profile: historyProfile };
     const ticketRequest = issueTicket(abortController.signal);
     const { ticket, sessionId } = await ticketRequest;
     currentSessionId = sessionId;

@@ -70,6 +70,7 @@ test('进入工作台后顶栏导航不重叠或产生横向溢出', async ({ pa
 
 test('会话 Tab 与主机总览之间切换不会重复发送终端 resize', async ({ page }) => {
   const calls: Array<Record<string, unknown>> = [];
+  const hostWrites: string[] = [];
   const host = {
     id: 'alpha', name: 'Tokyo production', host: '192.0.2.10', port: 22, username: 'root',
     group: '生产环境', authMethod: 'password', initialCommand: '', termType: 'xterm-256color',
@@ -78,7 +79,10 @@ test('会话 Tab 与主机总览之间切换不会重复发送终端 resize', as
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/auth/me') return route.fulfill({ json: { account: { username: 'Administrator' }, provider: 'local-dev' } });
-    if (path === '/api/hosts') return route.fulfill({ json: { hosts: [host] } });
+    if (path === '/api/hosts') {
+      if (route.request().method() !== 'GET') hostWrites.push(route.request().method());
+      return route.fulfill({ json: { hosts: [host] } });
+    }
     if (path.endsWith('/credentials')) return route.fulfill({ json: { password: 'test-password' } });
     if (path === '/api/session') return route.fulfill({ json: { ticket: 'test-ticket', sessionId: 'test-session' } });
     return route.fulfill({ json: {} });
@@ -95,6 +99,7 @@ test('会话 Tab 与主机总览之间切换不会重复发送终端 resize', as
 
   await page.locator('#host-list').getByRole('button', { name: '连接', exact: true }).click();
   await expect.poll(() => calls.some((message) => message.type === 'connect')).toBe(true);
+  await expect.poll(() => hostWrites).toEqual([]);
   await expect(page.locator('.session-tab')).toHaveCount(1);
   await page.waitForTimeout(300);
   const resizeCount = () => calls.filter((message) => message.type === 'resize').length;
