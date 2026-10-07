@@ -19,6 +19,37 @@ async function dashboardFixture(page: Page) {
   await page.goto('/');
 }
 
+test('会话栏在无会话和关闭最后一个会话后常驻显示', async ({ page }) => {
+  await dashboardFixture(page);
+  const bar = page.locator('#session-tabs');
+  const home = page.locator('#session-home');
+  const expectEmptyHome = async () => {
+    await expect(bar).toBeVisible();
+    await expect(home).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('.session-tab')).toHaveCount(0);
+    await expect(page.locator('#session-new')).toBeVisible();
+    await expect(page.locator('#theme-toggle')).toBeVisible();
+    await expect(page.locator('#session-language-toggle')).toBeVisible();
+    await expect(page.locator('#session-scroll-left')).toBeHidden();
+    await expect(page.locator('#session-scroll-right')).toBeHidden();
+    const barBounds = await bar.boundingBox();
+    const headerBounds = await page.locator('#dashboard .home-header').boundingBox();
+    expect(headerBounds!.y).toBeGreaterThanOrEqual(barBounds!.y + barBounds!.height);
+  };
+  await expectEmptyHome();
+
+  await page.locator('#session-new').click();
+  await expect(page.locator('.session-tab')).toHaveCount(1);
+  await expect(home).not.toHaveAttribute('aria-current', 'page');
+  const session = page.frameLocator('.session-frame-host iframe');
+  await expect(session.locator('#connection-panel')).toBeVisible();
+  await expect(session.locator('#session-tabs')).toBeHidden();
+
+  await page.locator('.session-tab-close').click();
+  await expect(page.locator('#session-frame-host')).toBeHidden();
+  await expectEmptyHome();
+});
+
 test('生成预览、保护密码和使用下载始终对应同一公钥', async ({ page }) => {
   await dashboardFixture(page);
   await page.getByRole('button', { name: '编辑 Tokyo production' }).click();

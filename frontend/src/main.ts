@@ -470,7 +470,7 @@ interface EmbeddedSession {
 
 const embeddedSessions = new Map<string, EmbeddedSession>();
 let activeEmbeddedSessionId: string | null = null;
-let sessionHomeSelected = false;
+let sessionHomeSelected = true;
 
 function postSessionEvent(type: string, payload: Record<string, unknown> = {}): void {
   if (!isSessionFrame || !embeddedSessionId || window.parent === window) return;
@@ -513,8 +513,6 @@ function revealActiveSessionTab(): void {
 
 function renderEmbeddedSessionTabs(): void {
   if (isSessionFrame) return;
-  document.body.classList.toggle('has-session-tabs', embeddedSessions.size > 0);
-  sessionUI.root.hidden = embeddedSessions.size === 0;
   if (sessionHomeSelected) sessionUI.home.setAttribute('aria-current', 'page');
   else sessionUI.home.removeAttribute('aria-current');
   sessionUI.list.replaceChildren();
@@ -617,6 +615,7 @@ function openEmbeddedSession(profile?: SavedProfile): void {
 }
 
 if (!isSessionFrame) {
+  renderEmbeddedSessionTabs();
   new ResizeObserver(() => {
     updateSessionTabOverflow();
     revealActiveSessionTab();

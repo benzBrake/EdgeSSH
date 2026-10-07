@@ -280,9 +280,8 @@ body {
   background: var(--bg);
 }
 
-/* The dashboard is a normal-flow page. Reserve the fixed session bar's
-   height while it is visible so the home header stays fully reachable. */
-body.has-session-tabs[data-view='dashboard'] #dashboard {
+/* Reserve the permanent session bar's height so the home header stays reachable. */
+body:not([data-session-frame='true'])[data-view='dashboard'] #dashboard {
   padding-top: var(--session-tabs-height);
 }
 
