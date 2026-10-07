@@ -53,8 +53,6 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
 .account-avatar { display: grid; place-items: center; width: 34px; height: 34px; background: var(--home-line); border-radius: 50%; font-weight: 700; flex-shrink: 0; }
 #account-label { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-account a { color: var(--home-muted) !important; padding: 12px 0; text-decoration: none; }
-.home-account .home-github { display: inline-flex; align-items: center; padding: 8px 0; }
-#dashboard .home-account .home-github svg { width: 32px; height: 32px; }
 .home-layout { display: grid; grid-template-columns: 104px minmax(0, 1fr); min-height: calc(100dvh - 80px); }
 .home-rail { display: flex; flex-direction: column; align-items: stretch; padding: 20px 10px; gap: 14px; border-right: 1px solid var(--home-line); background: var(--home-surface); }
 #dashboard .rail-item { min-height: 74px; padding: 12px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: none; color: var(--home-muted); border-radius: 8px; font-size: 12px; white-space: nowrap; }
