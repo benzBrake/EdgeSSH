@@ -48,7 +48,6 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
 #dashboard .home-button:hover { background: var(--home-bg); border-color: var(--home-muted); }
 #dashboard .home-button.primary { background: var(--home-accent); color: var(--home-surface); border-color: var(--home-accent); }
 #dashboard .home-button.primary:hover { background: var(--home-accent-hover); border-color: var(--home-accent-hover); }
-.header-add { margin-left: auto; }
 .home-account { display: flex; gap: 9px; align-items: center; font-size: 12px; min-width: 0; }
 .account-avatar { display: grid; place-items: center; width: 34px; height: 34px; background: var(--home-line); border-radius: 50%; font-weight: 700; flex-shrink: 0; }
 #account-label { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -217,7 +216,6 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
   .home-brand { font-size: 21px; }
   .home-search { order: 3; flex-basis: 100%; max-width: none; }
   .home-account { margin-left: auto; }
-  #dashboard .header-add { display: none; }
   .home-layout { display: block; }
   .home-rail { flex-direction: row; gap: 8px; padding: 8px 16px; border-right: none; border-bottom: 1px solid var(--home-line); }
   #dashboard .rail-item { min-height: 44px; padding: 8px 12px; flex-direction: row; gap: 6px; }

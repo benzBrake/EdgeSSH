@@ -58,7 +58,6 @@ export class Dashboard {
     this.root.id = 'dashboard';
     this.root.innerHTML = `
       <header class="home-header">
-        <button class="home-button primary header-add" data-add>＋ 新建主机</button>
         <div class="home-account"><span class="account-avatar">A</span><span id="account-label">验证身份中</span><a id="account-action" href="/auth/login" title="管理员登录">登录</a></div>
       </header>
       <div class="home-layout">
