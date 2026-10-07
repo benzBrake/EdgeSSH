@@ -510,6 +510,25 @@ button:disabled {
   color: var(--accent);
 }
 
+.language-menu {
+  position: fixed;
+  z-index: 300;
+  top: 42px;
+  right: 12px;
+  display: grid;
+  min-width: 110px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+}
+.language-menu[hidden] { display: none; }
+.language-menu button { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border: 0; background: transparent; color: var(--text); text-align: left; }
+.language-menu button::before { width: 13px; color: var(--accent); content: ''; font-weight: 700; }
+.language-menu button[aria-checked='true']::before { content: '\2713'; }
+.language-menu button:hover, .language-menu button[aria-checked='true'] { background: var(--surface-2); color: var(--accent); }
+
 .icon-button.bordered {
   border: 1px solid var(--border);
 }

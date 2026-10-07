@@ -506,6 +506,43 @@ export class Dashboard {
     this.get('#cloud-key-passphrase-field').hidden = !key;
   }
 
+  setLanguage(language: 'zh-CN' | 'en'): void {
+    const english: Record<string, string> = {
+      '总览': 'Overview', '主机': 'Hosts', '文件管理': 'Files', '代码片段': 'Snippets', '端口转发': 'Port forwarding', '快速连接': 'Quick connect',
+      '我的主机': 'My hosts', '安全保存，随处连接。': 'Save securely, connect anywhere.', '添加主机': 'Add host', '新建主机': 'New host', '＋ 新建主机': '+ New host',
+      '主机地址': 'Host address', '搜索主机、分组或 IP 地址': 'Search hosts, groups, or IP addresses', '刷新列表 ↻': 'Refresh list ↻',
+      '散布全球，': 'Around the world,', '就在手边。': 'right at hand.', '点击国旗，即刻连接。': 'Click a flag to connect.', '暂停旋转': 'Pause rotation',
+      '继续旋转': 'Resume rotation', '临时连接': 'Temporary connection', '打开完整 SSH 工作台': 'Open the full SSH workspace',
+      '连接': 'Connect', '编辑主机': 'Edit host', '删除主机': 'Delete host', '位置未知': 'Location unknown', '登录': 'Sign in', '退出': 'Sign out',
+      '验证身份中': 'Authenticating', '未登录': 'Signed out', '连接主机': 'Connect host', '选择主机': 'Select host', '暂无主机，请先在总览添加': 'No hosts. Add one from Overview',
+    };
+    const copy: Record<string, string> = language === 'en' ? english : Object.fromEntries(Object.entries(english).map(([zh, en]) => [en, zh]));
+    const walker = document.createTreeWalker(this.root, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+    for (const node of nodes) {
+      const value = node.nodeValue?.trim();
+      if (value && copy[value]) node.nodeValue = node.nodeValue!.replace(value, copy[value]);
+    }
+    const hostTotal = this.get<HTMLElement>('#host-total');
+    const regionCount = this.get<HTMLElement>('#region-count');
+    const security = this.get<HTMLElement>('#auth-provider-label');
+    const unknownCount = this.hosts.filter((host) => !host.location).length;
+    const regions = new Set(this.hosts.map((host) => host.location?.countryCode).filter(Boolean)).size;
+    if (language === 'en') {
+      hostTotal.textContent = `${this.hosts.length} hosts · ${unknownCount} location unknown`;
+      regionCount.textContent = `${regions} regions`;
+      security.innerHTML = 'Identity<br>protected';
+    } else {
+      hostTotal.textContent = `${this.hosts.length} 台主机 · ${unknownCount} 台位置未知`;
+      regionCount.textContent = `${regions} 个国家 / 地区`;
+      security.innerHTML = '身份<br>保护';
+    }
+    this.root.querySelectorAll<HTMLInputElement>('[placeholder]').forEach((input) => {
+      if (language === 'en' && input.placeholder === '搜索主机、分组或 IP 地址') input.placeholder = copy['搜索主机、分组或 IP 地址'];
+    });
+  }
+
   private async openKeyPreview(): Promise<void> {
     const privateKey = this.field('privateKey').value.trim();
     if (privateKey && !window.confirm('当前私钥内容将在使用新密钥时被覆盖，是否继续？')) return;

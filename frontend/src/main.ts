@@ -372,9 +372,22 @@ function applyLanguage(language: Language, persist = false): void {
   }
 
   const toggleLabel = language === 'zh-CN' ? '切换到英文' : 'Switch to Chinese';
-  ui.languageToggle.dataset.language = language;
-  ui.languageToggle.setAttribute('aria-label', toggleLabel);
-  ui.languageToggle.title = toggleLabel;
+  document.querySelectorAll<HTMLButtonElement>('#language-toggle, #session-language-toggle').forEach((toggle) => {
+    toggle.dataset.language = language;
+    toggle.setAttribute('aria-label', '语言');
+    toggle.title = toggleLabel;
+  });
+  let savedLanguage: string | null = null;
+  try { savedLanguage = localStorage.getItem(LANGUAGE_STORAGE_KEY); } catch { /* Treat unavailable storage as automatic mode. */ }
+  document.querySelectorAll<HTMLElement>('[data-language-choice]').forEach((item) => {
+    const choice = item.dataset.languageChoice;
+    const checked = choice === 'auto' ? !savedLanguage : choice === language && savedLanguage === choice;
+    item.setAttribute('aria-checked', String(checked));
+    item.textContent = choice === 'auto' ? '自动' : choice === 'zh-CN' ? '中文' : 'English';
+  });
+  if (!isSessionFrame) {
+    for (const session of embeddedSessions.values()) session.iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'language', language }, location.origin);
+  }
   updateRevealPasswordButton();
   if (!ui.keyFile.files?.length) ui.keyFileName.textContent = bilingual('未选择文件', 'No file selected');
   ui.sessionSubtitle.textContent = localize(currentSessionSubtitle);
@@ -392,6 +405,7 @@ function applyLanguage(language: Language, persist = false): void {
   if (fileManager) fileManager.setLanguage();
   if (fileTree) fileTree.setLanguage();
   if (processManager) processManager.setLanguage();
+  dashboard?.setLanguage(language);
   terminalTools?.refreshLanguage();
 
   if (persist) {
@@ -584,6 +598,7 @@ function openEmbeddedSession(profile?: SavedProfile): void {
   if (profile) url.searchParams.set('profileId', profile.id);
   if (new URLSearchParams(location.search).get('demo') === '1') url.searchParams.set('demo', '1');
   iframe.src = `${url.pathname}${url.search}`;
+  iframe.addEventListener('load', () => iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'language', language: currentLanguage }, location.origin));
   sessionUI.frameHost.append(iframe);
   embeddedSessions.set(id, { id, label, fixedLabel: Boolean(profile), iframe, state: 'connecting' });
   activeEmbeddedSessionId = id;
@@ -641,6 +656,7 @@ if (!isSessionFrame) {
   window.addEventListener('message', (event) => {
     if (event.origin !== location.origin || event.source !== window.parent || event.data?.source !== 'edgessh-parent') return;
     if (event.data.type === 'session-focus') dashboard?.openWorkspace();
+    if (event.data.type === 'language' && (event.data.language === 'zh-CN' || event.data.language === 'en')) applyLanguage(event.data.language);
   });
 }
 
@@ -2409,13 +2425,28 @@ ui.eventToggle.addEventListener('click', () => toggleWorkspaceTab('log'));
 ui.fileManagerTab.addEventListener('keydown', handleWorkspaceTabKey);
 ui.processManagerTab.addEventListener('keydown', handleWorkspaceTabKey);
 ui.eventToggle.addEventListener('keydown', handleWorkspaceTabKey);
-ui.languageToggle.addEventListener('click', () => {
-  applyLanguage(currentLanguage === 'zh-CN' ? 'en' : 'zh-CN', true);
+const languageMenu = document.querySelector<HTMLElement>('#language-menu')!;
+const languageToggles = document.querySelectorAll<HTMLButtonElement>('#language-toggle, #session-language-toggle');
+languageToggles.forEach((toggle) => toggle.addEventListener('click', () => {
+  languageMenu.hidden = !languageMenu.hidden;
+  toggle.setAttribute('aria-expanded', String(!languageMenu.hidden));
+}));
+languageMenu.querySelectorAll<HTMLButtonElement>('[data-language-choice]').forEach((choice) => choice.addEventListener('click', () => {
+  const selected = choice.dataset.languageChoice!;
+  if (selected === 'auto') {
+    try { localStorage.removeItem(LANGUAGE_STORAGE_KEY); } catch { /* Language still applies for this page. */ }
+    applyLanguage(navigator.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en');
+  } else {
+    try { localStorage.setItem(LANGUAGE_STORAGE_KEY, selected); } catch { /* Language still applies for this page. */ }
+    applyLanguage(selected as Language);
+  }
+  languageMenu.hidden = true;
+  languageToggles.forEach((toggle) => toggle.setAttribute('aria-expanded', 'false'));
   renderProfiles();
   setState(connectionState);
   setPanelOpen(panelOpen);
   if (connectionState === 'idle' && !currentTargetLabel) ui.sessionTitle.textContent = bilingual('无活动会话', 'No active session');
-});
+}));
 ui.themeToggle.addEventListener('click', () => {
   const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
   document.documentElement.dataset.theme = next;
@@ -2537,7 +2568,10 @@ async function initialize(): Promise<void> {
     },
     onViewChange: (view) => postSessionEvent('view', { view }),
   });
+  // Dashboard markup is created after the initial page-wide language pass.
+  dashboard.setLanguage(currentLanguage);
   await dashboard.start();
+  dashboard.setLanguage(currentLanguage);
   if (isSessionFrame) {
     dashboard.openWorkspace();
     const profileId = new URLSearchParams(location.search).get('profileId');

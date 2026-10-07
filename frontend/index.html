@@ -23,7 +23,16 @@
       <div id="session-tab-list" class="session-tab-list" role="tablist" aria-label="已连接会话" data-i18n-aria-label-zh="已连接会话" data-i18n-aria-label-en="Connected sessions"></div>
       <button id="session-scroll-right" class="session-scroll" type="button" aria-label="向右滚动标签" data-i18n-aria-label-zh="向右滚动标签" data-i18n-aria-label-en="Scroll tabs right" hidden><span aria-hidden="true"></span></button>
       <button id="session-new" class="session-new" type="button" aria-label="新建 SSH 会话" data-i18n-aria-label-zh="新建 SSH 会话" data-i18n-aria-label-en="New SSH session" title="新建 SSH 会话" data-i18n-title-zh="新建 SSH 会话" data-i18n-title-en="New SSH session">＋</button>
-      <div id="session-button-group" class="session-button-group"></div>
+      <div id="session-button-group" class="session-button-group">
+        <button id="session-language-toggle" class="icon-button" type="button" aria-label="语言" title="语言" aria-haspopup="menu" aria-expanded="false" data-language="zh-CN">
+          <span class="language-icon" aria-hidden="true"><span>中</span><span>E</span></span>
+        </button>
+      </div>
+      <div id="language-menu" class="language-menu" role="menu" hidden>
+        <button type="button" role="menuitemradio" data-language-choice="auto" aria-checked="true">自动</button>
+        <button type="button" role="menuitemradio" data-language-choice="zh-CN" aria-checked="false">中文</button>
+        <button type="button" role="menuitemradio" data-language-choice="en" aria-checked="false">English</button>
+      </div>
     </nav>
     <div id="session-frame-host" class="session-frame-host" hidden></div>
     <div id="app" hidden>
