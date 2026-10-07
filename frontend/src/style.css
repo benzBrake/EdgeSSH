@@ -148,6 +148,23 @@ body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [d
   font-size: 12px;
 }
 
+.session-brand {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-right: 6px;
+  color: var(--text);
+  font-family: var(--home-display, var(--sans));
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.session-brand > span:last-child { color: var(--home-accent, var(--accent)); }
+.session-brand .brand-chevron { margin-right: 8px; color: var(--home-accent, var(--accent)); font-family: var(--mono); font-size: 22px; }
+.session-brand:hover { color: var(--text); text-decoration: none; }
+
 .session-home:hover,
 .session-scroll:hover:not(:disabled),
 .session-new:hover,
@@ -326,6 +343,7 @@ body[data-session-frame='true'] .panel-scrim { inset: 0; }
   :root { --session-tabs-height: 42px; }
   .session-tabs { padding-block: 4px; }
   .session-frame-host { top: var(--session-tabs-height); }
+  .session-brand { display: none; }
   .session-home { padding-inline: 8px; }
   .session-home > span:last-child { display: none; }
   .session-tab { flex-basis: 175px; }
