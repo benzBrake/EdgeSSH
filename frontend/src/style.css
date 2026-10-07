@@ -119,6 +119,12 @@ body {
   color: var(--text);
 }
 
+.session-home[aria-current='page'] {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
 .session-tab-list {
   display: flex;
   min-width: 0;
@@ -221,7 +227,6 @@ body.has-session-tabs[data-view='dashboard'] #dashboard {
 body[data-session-frame='true'] .topbar { display: none; }
 body[data-session-frame='true'] #app { height: 100%; }
 body[data-session-frame='true'] .app-shell { height: 100%; }
-body[data-session-frame='true'] #dashboard,
 body[data-session-frame='true'] #session-tabs,
 body[data-session-frame='true'] #session-frame-host { display: none !important; }
 body[data-session-frame='true'] .connection-panel {

@@ -451,6 +451,7 @@ interface EmbeddedSession {
 
 const embeddedSessions = new Map<string, EmbeddedSession>();
 let activeEmbeddedSessionId: string | null = null;
+let sessionHomeSelected = false;
 
 function postSessionEvent(type: string, payload: Record<string, unknown> = {}): void {
   if (!isSessionFrame || !embeddedSessionId || window.parent === window) return;
@@ -461,6 +462,8 @@ function renderEmbeddedSessionTabs(): void {
   if (isSessionFrame) return;
   document.body.classList.toggle('has-session-tabs', embeddedSessions.size > 0);
   sessionUI.root.hidden = embeddedSessions.size === 0;
+  if (sessionHomeSelected) sessionUI.home.setAttribute('aria-current', 'page');
+  else sessionUI.home.removeAttribute('aria-current');
   sessionUI.list.replaceChildren();
   for (const session of embeddedSessions.values()) {
     const tab = document.createElement('div');
@@ -468,7 +471,7 @@ function renderEmbeddedSessionTabs(): void {
     tab.dataset.sessionId = session.id;
     tab.setAttribute('role', 'tab');
     tab.tabIndex = 0;
-    tab.setAttribute('aria-selected', String(session.id === activeEmbeddedSessionId));
+    tab.setAttribute('aria-selected', String(!sessionHomeSelected && session.id === activeEmbeddedSessionId));
     tab.setAttribute('aria-controls', `session-frame-${session.id}`);
     tab.title = session.label;
     const copy = document.createElement('span');
@@ -503,6 +506,7 @@ function renderEmbeddedSessionTabs(): void {
 
 function activateEmbeddedSession(id: string | null): void {
   activeEmbeddedSessionId = id;
+  sessionHomeSelected = id === null;
   if (id === null || !embeddedSessions.has(id)) {
     sessionUI.frameHost.hidden = true;
     dashboard?.show();
@@ -556,12 +560,18 @@ function openEmbeddedSession(profile?: SavedProfile): void {
 if (!isSessionFrame) {
   window.addEventListener('message', (event) => {
     if (event.origin !== location.origin || !event.data || event.data.source !== 'edgessh-session') return;
-    const message = event.data as { sessionId?: string; type?: string; state?: ConnectionState; label?: string };
+    const message = event.data as { sessionId?: string; type?: string; state?: ConnectionState; label?: string; view?: string };
     if (!message.sessionId || !message.type) return;
     const session = embeddedSessions.get(message.sessionId);
     if (!session || event.source !== session.iframe.contentWindow) return;
     if (message.type === 'close-empty') {
       closeEmbeddedSession(message.sessionId);
+      return;
+    }
+    if (message.type === 'view') {
+      if (message.view === 'snippets') sessionHomeSelected = true;
+      else if (message.view === 'workspace' && activeEmbeddedSessionId === message.sessionId) sessionHomeSelected = false;
+      renderEmbeddedSessionTabs();
       return;
     }
     if (message.type === 'state' && message.state) session.state = message.state;
@@ -573,6 +583,11 @@ if (!isSessionFrame) {
   });
   sessionUI.home.addEventListener('click', () => activateEmbeddedSession(null));
   sessionUI.create.addEventListener('click', () => openEmbeddedSession());
+} else {
+  window.addEventListener('message', (event) => {
+    if (event.origin !== location.origin || event.source !== window.parent || event.data?.source !== 'edgessh-parent') return;
+    if (event.data.type === 'session-focus') dashboard?.openWorkspace();
+  });
 }
 
 function demoWrite(text: string): void { terminal.write(text.replace(/\n/g, '\r\n')); }
@@ -2453,6 +2468,7 @@ async function initialize(): Promise<void> {
         dashboard?.show();
       }
     },
+    onViewChange: (view) => postSessionEvent('view', { view }),
   });
   await dashboard.start();
   if (isSessionFrame) {

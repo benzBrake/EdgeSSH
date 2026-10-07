@@ -15,6 +15,7 @@ interface DashboardActions {
   connect(host: CloudHost): Promise<boolean | void>;
   quickConnect(): void;
   leaveWorkspace(): void;
+  onViewChange?(view: 'dashboard' | 'workspace' | 'files' | 'snippets' | 'forward'): void;
 }
 
 const icons = {
@@ -243,6 +244,7 @@ export class Dashboard {
     this.selectNavigation('rail-overview');
     document.getElementById('app')!.hidden = true;
     document.body.dataset.view = 'dashboard';
+    this.actions.onViewChange?.('dashboard');
     this.globe?.setActive(!this.paused);
   }
 
@@ -253,6 +255,7 @@ export class Dashboard {
     this.isHome = false; this.root.hidden = true;
     document.getElementById('app')!.hidden = false;
     document.body.dataset.view = 'workspace';
+    this.actions.onViewChange?.('workspace');
     this.globe?.setActive(false);
     window.dispatchEvent(new Event('resize'));
     this.actions.snippets.load();
@@ -266,6 +269,7 @@ export class Dashboard {
     this.get('.home-content').hidden = true;
     document.getElementById('app')!.hidden = true;
     document.body.dataset.view = 'files';
+    this.actions.onViewChange?.('files');
     this.selectNavigation('rail-files');
     this.globe?.setActive(false);
     this.actions.files.show();
@@ -280,6 +284,7 @@ export class Dashboard {
     this.get('.home-content').hidden = true;
     document.getElementById('app')!.hidden = true;
     document.body.dataset.view = 'snippets';
+    this.actions.onViewChange?.('snippets');
     this.selectNavigation('rail-snippets');
     this.globe?.setActive(false);
     this.actions.snippets.show();
@@ -294,6 +299,7 @@ export class Dashboard {
     this.get('.home-content').hidden = true;
     document.getElementById('app')!.hidden = true;
     document.body.dataset.view = 'forward';
+    this.actions.onViewChange?.('forward');
     this.selectNavigation('rail-forward');
     this.globe?.setActive(false);
     this.forwarding.show();

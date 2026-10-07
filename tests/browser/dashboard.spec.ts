@@ -107,3 +107,55 @@ test('会话 Tab 与主机总览之间切换不会重复发送终端 resize', as
 
   expect(resizeCount()).toBe(baseline);
 });
+
+test('会话终端中的管理代码片段可打开管理页并返回工作台', async ({ page }) => {
+  const host = {
+    id: 'alpha', name: 'Tokyo production', host: '192.0.2.10', port: 22, username: 'root',
+    group: '生产环境', authMethod: 'password', initialCommand: '', termType: 'xterm-256color',
+    encoding: 'utf-8', fingerprint: '', location: null, system: null, hasCredential: true, updatedAt: Date.now(),
+  };
+  await page.route('**/api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/auth/me') return route.fulfill({ json: { account: { username: 'Administrator' }, provider: 'local-dev' } });
+    if (path === '/api/hosts') return route.fulfill({ json: { hosts: [host] } });
+    if (path.endsWith('/credentials')) return route.fulfill({ json: { password: 'test-password' } });
+    if (path === '/api/session') return route.fulfill({ json: { ticket: 'test-ticket', sessionId: 'test-session' } });
+    if (path === '/api/snippets') return route.fulfill({ json: { snippets: [] } });
+    return route.fulfill({ json: {} });
+  });
+  await page.routeWebSocket('**/api/ssh?*', (ws) => {
+    ws.onMessage((raw) => {
+      if (typeof raw !== 'string') return;
+      const message = JSON.parse(raw) as Record<string, unknown>;
+      if (message.type === 'connect') ws.send(JSON.stringify({ type: 'ready' }));
+    });
+  });
+  await page.goto('/');
+  await page.locator('#host-list').getByRole('button', { name: '连接', exact: true }).click();
+  await expect(page.locator('.session-tab')).toHaveCount(1);
+
+  const session = page.frameLocator('.session-frame-host iframe');
+  await expect(session.locator('#snippet-panel')).toBeVisible();
+  const expand = session.getByRole('button', { name: '展开代码片段' });
+  if (await expand.count()) await expand.click();
+  await session.getByRole('button', { name: '管理代码片段', exact: true }).click();
+  await expect(session.locator('#snippets-page')).toBeVisible();
+  await expect(session.getByRole('heading', { name: '代码片段', exact: true })).toBeVisible();
+  await expect(page.locator('#session-home')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('.session-tab')).toHaveAttribute('aria-selected', 'false');
+
+  await session.getByRole('button', { name: '返回终端', exact: true }).click();
+  await expect(page.locator('#session-home')).not.toHaveAttribute('aria-current', 'page');
+  await expect(session.locator('#app')).toBeVisible();
+
+  const panelAfterReturn = session.locator('#snippet-panel');
+  const expandAfterReturn = session.getByRole('button', { name: '展开代码片段' });
+  if (await expandAfterReturn.count()) await expandAfterReturn.click();
+  await panelAfterReturn.getByRole('button', { name: '管理代码片段', exact: true }).click();
+  await expect(page.locator('#session-home')).toHaveAttribute('aria-current', 'page');
+
+  await page.locator('.session-tab').click();
+  await expect(page.locator('#session-home')).not.toHaveAttribute('aria-current', 'page');
+  await expect(session.locator('#app')).toBeVisible();
+  await expect(session.locator('#terminal-card')).toBeVisible();
+});
