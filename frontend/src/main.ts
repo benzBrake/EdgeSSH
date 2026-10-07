@@ -335,6 +335,8 @@ if (isSessionFrame) document.body.dataset.sessionFrame = 'true';
 const sessionUI = {
   root: element<HTMLElement>('session-tabs'),
   list: element<HTMLElement>('session-tab-list'),
+  scrollLeft: element<HTMLButtonElement>('session-scroll-left'),
+  scrollRight: element<HTMLButtonElement>('session-scroll-right'),
   home: element<HTMLButtonElement>('session-home'),
   create: element<HTMLButtonElement>('session-new'),
   frameHost: element<HTMLElement>('session-frame-host'),
@@ -461,6 +463,33 @@ function postSessionEvent(type: string, payload: Record<string, unknown> = {}): 
   window.parent.postMessage({ source: 'edgessh-session', sessionId: embeddedSessionId, type, ...payload }, location.origin);
 }
 
+function updateSessionTabOverflow(): void {
+  const { list, scrollLeft, scrollRight } = sessionUI;
+  // Measure without arrows so they cannot keep a fitting list overflowing.
+  scrollLeft.hidden = true;
+  scrollRight.hidden = true;
+  const overflowing = list.scrollWidth > list.clientWidth + 1;
+  scrollLeft.hidden = !overflowing;
+  scrollRight.hidden = !overflowing;
+  updateSessionScrollButtons();
+}
+
+function updateSessionScrollButtons(): void {
+  const { list, scrollLeft, scrollRight } = sessionUI;
+  scrollLeft.disabled = list.scrollLeft <= 1;
+  scrollRight.disabled = list.scrollLeft + list.clientWidth >= list.scrollWidth - 1;
+}
+
+function revealActiveSessionTab(): void {
+  const tab = sessionUI.list.querySelector<HTMLElement>('[aria-selected="true"]');
+  if (!tab) return;
+  const listRect = sessionUI.list.getBoundingClientRect();
+  const tabRect = tab.getBoundingClientRect();
+  if (tabRect.left < listRect.left) sessionUI.list.scrollLeft += tabRect.left - listRect.left;
+  else if (tabRect.right > listRect.right) sessionUI.list.scrollLeft += tabRect.right - listRect.right;
+  updateSessionScrollButtons();
+}
+
 function renderEmbeddedSessionTabs(): void {
   if (isSessionFrame) return;
   document.body.classList.toggle('has-session-tabs', embeddedSessions.size > 0);
@@ -505,6 +534,8 @@ function renderEmbeddedSessionTabs(): void {
     });
     sessionUI.list.append(tab);
   }
+  updateSessionTabOverflow();
+  revealActiveSessionTab();
 }
 
 function activateEmbeddedSession(id: string | null): void {
@@ -561,7 +592,27 @@ function openEmbeddedSession(profile?: SavedProfile): void {
 }
 
 if (!isSessionFrame) {
-  window.addEventListener('message', (event) => {
+  new ResizeObserver(() => {
+    updateSessionTabOverflow();
+    revealActiveSessionTab();
+  }).observe(sessionUI.root);
+  sessionUI.list.addEventListener('scroll', updateSessionScrollButtons);
+  sessionUI.scrollLeft.addEventListener('click', () => sessionUI.list.scrollBy({ left: -sessionUI.list.clientWidth, behavior: 'smooth' }));
+  sessionUI.scrollRight.addEventListener('click', () => sessionUI.list.scrollBy({ left: sessionUI.list.clientWidth, behavior: 'smooth' }));
+  let lastSessionWheelTime = -Infinity;
+  sessionUI.root.addEventListener('wheel', (event) => {
+    if (event.ctrlKey || embeddedSessions.size < 2) return;
+    const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    if (!delta) return;
+    event.preventDefault();
+    if (performance.now() - lastSessionWheelTime < 150) return;
+    lastSessionWheelTime = performance.now();
+    const ids = [...embeddedSessions.keys()];
+    const index = sessionHomeSelected ? -1 : ids.indexOf(activeEmbeddedSessionId ?? '');
+    const next = index < 0 ? (delta > 0 ? 0 : ids.length - 1) : Math.max(0, Math.min(ids.length - 1, index + Math.sign(delta)));
+    if (sessionHomeSelected || next !== index) activateEmbeddedSession(ids[next]);
+  }, { passive: false });
+  window.addEventListener('message' , (event) => {
     if (event.origin !== location.origin || !event.data || event.data.source !== 'edgessh-session') return;
     const message = event.data as { sessionId?: string; type?: string; state?: ConnectionState; label?: string; view?: string };
     if (!message.sessionId || !message.type) return;

@@ -236,3 +236,36 @@ test('会话终端中的管理代码片段可打开管理页并返回工作台',
   await expect(session.locator('#app')).toBeVisible();
   await expect(session.locator('#terminal-card')).toBeVisible();
 });
+
+
+test('会话标签溢出使用箭头，滚轮切换并显示选中标签', async ({ page }) => {
+  await page.route('**/*sessionFrame=1*', (route) => route.fulfill({ contentType: 'text/html', body: '<html></html>' }));
+  await dashboardFixture(page);
+  await page.locator('#host-list').getByRole('button', { name: '连接', exact: true }).click();
+  await expect(page.locator('.session-tab')).toHaveCount(1);
+  await expect(page.locator('#session-scroll-left')).toBeHidden();
+  await expect(page.locator('#session-scroll-right')).toBeHidden();
+  for (let i = 0; i < 7; i++) await page.locator('#session-new').click();
+  await expect(page.locator('.session-tab')).toHaveCount(8);
+  await expect(page.locator('#session-scroll-left')).toBeVisible();
+  await expect(page.locator('#session-scroll-right')).toBeDisabled();
+  expect(await page.locator('#session-tab-list').evaluate((el) => getComputedStyle(el).scrollbarWidth)).toBe('none');
+  const initialScroll = await page.locator('#session-tab-list').evaluate((el) => el.scrollLeft);
+  await page.locator('#session-scroll-left').click();
+  await expect.poll(() => page.locator('#session-tab-list').evaluate((el) => el.scrollLeft)).toBeLessThan(initialScroll - 1);
+  await page.locator('.session-tab').first().click({ force: true });
+  await expect(page.locator('#session-scroll-left')).toBeDisabled();
+  await page.locator('#session-scroll-right').click();
+  await expect.poll(() => page.locator('#session-tab-list').evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  await page.locator('#session-tabs').dispatchEvent('wheel', { deltaY: 100 });
+  await expect(page.locator('.session-tab').nth(1)).toHaveAttribute('aria-selected', 'true');
+  expect(await page.locator('.session-tab').nth(1).evaluate((el) => {
+    const tab = el.getBoundingClientRect();
+    const list = el.parentElement!.getBoundingClientRect();
+    return tab.left >= list.left - 1 && tab.right <= list.right + 1;
+  })).toBe(true);
+  await page.setViewportSize({ width: 2400, height: 1000 });
+  await expect(page.locator('#session-scroll-left')).toBeHidden();
+  await expect(page.locator('#session-scroll-right')).toBeHidden();
+  expect(await page.locator('#session-button-group').evaluate((el) => el.getBoundingClientRect().width)).toBe(0);
+});

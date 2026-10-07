@@ -93,6 +93,7 @@ body {
 }
 
 .session-home,
+.session-scroll,
 .session-new,
 .session-tab {
   display: inline-flex;
@@ -113,6 +114,7 @@ body {
 }
 
 .session-home:hover,
+.session-scroll:hover:not(:disabled),
 .session-new:hover,
 .session-tab:hover {
   background: var(--surface-2);
@@ -128,17 +130,64 @@ body {
 .session-tab-list {
   display: flex;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   align-items: stretch;
   gap: 3px;
   overflow-x: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
+
+.session-tab-list::-webkit-scrollbar { display: none; }
+
+.session-scroll {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+}
+
+.session-scroll > span {
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+}
+
+#session-scroll-left > span { transform: translateX(2px) rotate(-135deg); }
+#session-scroll-right > span { transform: translateX(-2px) rotate(45deg); }
+
+.session-scroll::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  pointer-events: none;
+  content: '';
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+#session-scroll-left::after {
+  left: calc(100% + 5px);
+  background: linear-gradient(to right, color-mix(in srgb, var(--bg) 65%, transparent), transparent);
+}
+
+#session-scroll-right::after {
+  right: calc(100% + 5px);
+  background: linear-gradient(to left, color-mix(in srgb, var(--bg) 65%, transparent), transparent);
+}
+
+.session-scroll:not(:disabled)::after { opacity: 1; }
+
+.session-scroll:disabled { opacity: 0.35; }
 
 .session-tab {
   position: relative;
   cursor: pointer;
-  flex: 0 1 230px;
+  flex: 0 0 230px;
   justify-content: space-between;
   gap: 8px;
   padding: 0 7px 0 11px;
@@ -198,6 +247,14 @@ body {
   flex: 0 0 auto;
   justify-content: center;
   font-size: 19px;
+}
+
+.session-button-group {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  gap: 5px;
+  margin-left: auto;
 }
 
 .session-frame-host {
