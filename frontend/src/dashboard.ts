@@ -509,10 +509,18 @@ export class Dashboard {
   setLanguage(language: 'zh-CN' | 'en'): void {
     const english: Record<string, string> = {
       '总览': 'Overview', '主机': 'Hosts', '文件管理': 'Files', '代码片段': 'Snippets', '端口转发': 'Port forwarding', '快速连接': 'Quick connect',
-      '我的主机': 'My hosts', '安全保存，随处连接。': 'Save securely, connect anywhere.', '添加主机': 'Add host', '新建主机': 'New host', '＋ 新建主机': '+ New host',
+      '我的主机': 'My hosts', '安全保存，随处连接。': 'Save securely, connect anywhere.', '添加主机': 'Add host', '新建主机': 'New host', '＋ 新建主机': '+ New host', '＋ 添加主机': '+ Add host',
       '主机地址': 'Host address', '搜索主机、分组或 IP 地址': 'Search hosts, groups, or IP addresses', '刷新列表 ↻': 'Refresh list ↻',
       '散布全球，': 'Around the world,', '就在手边。': 'right at hand.', '点击国旗，即刻连接。': 'Click a flag to connect.', '暂停旋转': 'Pause rotation',
       '继续旋转': 'Resume rotation', '临时连接': 'Temporary connection', '打开完整 SSH 工作台': 'Open the full SSH workspace',
+      '城市级近似定位 · 位置不代表在线状态': 'Approximate city-level location · Location does not indicate online status',
+      '凭据留在你的加密保险箱': 'Credentials stay in your encrypted vault',
+      '管理员认证 · D1 加密存储 · 密钥仅在 Worker': 'Admin authentication · Encrypted D1 storage · Keys stay in the Worker',
+      '首次保存时查询公网 IP 位置，失败时仍可连接。': 'Public IP location is looked up on first save; connections still work if lookup fails.',
+      '地图数据与灵感来自 Mappo.js': 'Map data and inspiration from Mappo.js',
+      'EdgeSSH 首页': 'EdgeSSH home', '搜索主机': 'Search hosts', '管理员登录': 'Administrator sign-in', '主导航': 'Main navigation',
+      '管理员身份认证': 'Administrator authentication', '按分组筛选': 'Filter by group', '主机地理分布，可拖动旋转；也可使用主机列表连接': 'Host locations; drag to rotate or connect from the host list',
+      '存储与连接信息': 'Storage and connection information', '关闭': 'Close', '生成新的 Ed25519 密钥对': 'Generate a new Ed25519 key pair',
       '连接': 'Connect', '编辑主机': 'Edit host', '删除主机': 'Delete host', '位置未知': 'Location unknown', '登录': 'Sign in', '退出': 'Sign out',
       '验证身份中': 'Authenticating', '未登录': 'Signed out', '连接主机': 'Connect host', '选择主机': 'Select host', '暂无主机，请先在总览添加': 'No hosts. Add one from Overview',
     };
@@ -538,8 +546,11 @@ export class Dashboard {
       regionCount.textContent = `${regions} 个国家 / 地区`;
       security.innerHTML = '身份<br>保护';
     }
-    this.root.querySelectorAll<HTMLInputElement>('[placeholder]').forEach((input) => {
-      if (language === 'en' && input.placeholder === '搜索主机、分组或 IP 地址') input.placeholder = copy['搜索主机、分组或 IP 地址'];
+    this.root.querySelectorAll<HTMLElement>('[title], [aria-label], [placeholder]').forEach((element) => {
+      for (const attribute of ['title', 'aria-label', 'placeholder']) {
+        const value = element.getAttribute(attribute);
+        if (value && copy[value]) element.setAttribute(attribute, copy[value]);
+      }
     });
   }
 
