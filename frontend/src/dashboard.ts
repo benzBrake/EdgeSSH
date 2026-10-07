@@ -58,7 +58,6 @@ export class Dashboard {
     this.root.id = 'dashboard';
     this.root.innerHTML = `
       <header class="home-header">
-        <label class="home-search">${icon('search')}<input id="host-search" type="search" placeholder="搜索主机、分组或 IP 地址" aria-label="搜索主机"><kbd>Ctrl K</kbd></label>
         <button class="home-button primary header-add" data-add>＋ 新建主机</button>
         <div class="home-account"><span class="account-avatar">A</span><span id="account-label">验证身份中</span><a id="account-action" href="/auth/login" title="管理员登录">登录</a></div>
       </header>
@@ -77,6 +76,7 @@ export class Dashboard {
           <div class="home-main-grid">
             <section class="hosts-pane" aria-labelledby="hosts-heading">
               <div class="home-section-heading"><div><p class="home-eyebrow">YOUR INFRASTRUCTURE</p><h1 id="hosts-heading">我的主机</h1><p>安全保存，随处连接。</p></div><button class="home-button" data-add>＋ 添加主机</button></div>
+              <label class="home-search">${icon('search')}<input id="host-search" type="search" placeholder="搜索主机、分组或 IP 地址" aria-label="搜索主机"><kbd>Ctrl K</kbd></label>
               <div class="host-filters" id="host-filters" aria-label="按分组筛选"></div>
               <div id="host-list" class="host-list" aria-live="polite"><p class="home-empty">正在从云端加载主机…</p></div>
               <div class="host-list-footer"><span id="host-total">0 台主机</span><button class="home-text-button" id="refresh-hosts">刷新列表 ↻</button></div>
