@@ -311,7 +311,7 @@ export class Dashboard {
     this.actions.files.show();
   }
 
-  showSnippets(): void {
+  showSnippets(fromTerminal = false): void {
     if (!this.actions.files.confirmLeave()) return;
     this.forwarding.hide();
     // 仅切换视图，不结束 SSH；在片段页编辑后可回到同一会话。
@@ -323,7 +323,7 @@ export class Dashboard {
     this.actions.onViewChange?.('snippets');
     this.selectNavigation('rail-snippets');
     this.globe?.setActive(false);
-    this.actions.snippets.show();
+    this.actions.snippets.show(fromTerminal);
   }
 
   showForwarding(): void {

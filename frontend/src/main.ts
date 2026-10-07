@@ -2541,7 +2541,7 @@ async function initialize(): Promise<void> {
       if (document.getElementById('command-editor')!.hidden) document.getElementById('command-editor-toggle')!.click();
       input.focus();
       toast(bilingual('已填入命令编辑器，确认后再发送。', 'Added to the command editor. Review before sending.'), 'info');
-    }, () => dashboard?.openWorkspace(), () => dashboard?.showSnippets()),
+    }, () => dashboard?.openWorkspace(), () => dashboard?.showSnippets(true)),
     refresh: async () => {
       profiles = await loadProfiles();
       renderProfiles();

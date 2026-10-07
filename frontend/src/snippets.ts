@@ -23,8 +23,9 @@ export class Snippets {
     new SnippetPanel(container, this.store, editor, use, openLibrary);
   }
 
-  show(): void {
+  show(fromTerminal = false): void {
     this.page.hidden = false; void this.store.load(true);
+    this.page.querySelector<HTMLButtonElement>('.snippet-open-terminal')!.hidden = !fromTerminal;
     this.page.querySelector<HTMLElement>('h1')!.focus();
   }
 
