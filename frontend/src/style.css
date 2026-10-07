@@ -104,6 +104,20 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
+/* Home pages own their scrolling area so the viewport scrollbar starts below
+ * the fixed session bar instead of running underneath it. */
+body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) {
+  overflow: hidden;
+}
+
+body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) #dashboard {
+  height: calc(100dvh - var(--session-tabs-height));
+  min-height: 0;
+  margin-top: var(--session-tabs-height);
+  overflow-y: auto;
+  padding-top: 0;
+}
+
 .session-home,
 .session-scroll,
 .session-new,
@@ -278,11 +292,6 @@ body {
   left: 0;
   overflow: hidden;
   background: var(--bg);
-}
-
-/* Reserve the permanent session bar's height so the home header stays reachable. */
-body:not([data-session-frame='true'])[data-view='dashboard'] #dashboard {
-  padding-top: var(--session-tabs-height);
 }
 
 .session-frame-host iframe {
