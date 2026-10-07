@@ -58,6 +58,8 @@ body[data-view='snippets'] { overflow-y: auto; background: var(--home-bg); }
 .snippet-drag strong { white-space: nowrap; font-size: 13px; }
 .snippet-grip { color: var(--snip-muted); margin-left: auto; }
 .snippet-panel :is(button.snippet-collapse, button.snippet-manage) { width: 36px; padding: 0; border: 0; background: transparent; font-size: 20px; flex-shrink: 0; }
+.snippet-collapse svg { display: block; width: 18px; height: 18px; margin: auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.snippet-manage svg { display: block; width: 18px; height: 18px; margin: auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 #snippet-panel-body { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 12px 12px; scrollbar-width: thin; }
 .snippet-panel-hint { color: var(--snip-muted); font-size: 11px; margin: 12px 0; }
 .compact .snippet-search { flex-basis: 100%; }

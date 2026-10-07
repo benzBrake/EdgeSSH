@@ -15,7 +15,7 @@ export class SnippetPanel {
     this.root.innerHTML = `<header class="snippet-panel-heading">
       <button class="snippet-drag" type="button" aria-label="移动代码片段窗口" title="拖动移动，也可用方向键移动、Home 键复位">
         <span class="snippet-symbol" aria-hidden="true">{ }</span><strong>代码片段</strong><span class="snippet-grip" aria-hidden="true">⠿</span>
-      </button><button class="snippet-manage" type="button" aria-label="管理代码片段" title="管理代码片段">↗</button>
+      </button><button class="snippet-manage" type="button" aria-label="管理代码片段" title="管理代码片段"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 1 0-2 3.46l.15.08a2 2 0 0 1 1 1.73v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 1 0 2 3.46l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 1 0 2-3.46l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 1 0-2-3.46l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
       <button class="snippet-collapse" type="button" aria-controls="snippet-panel-body"></button>
     </header><div id="snippet-panel-body"><p class="snippet-panel-hint">常用命令，一次保存，随时取用。</p></div>`;
     this.body = this.root.querySelector('#snippet-panel-body')!;
@@ -37,7 +37,9 @@ export class SnippetPanel {
   private setCollapsed(collapsed: boolean): void {
     this.body.hidden = collapsed;
     this.root.classList.toggle('is-collapsed', collapsed);
-    this.toggle.textContent = collapsed ? '＋' : '−';
+    this.toggle.innerHTML = collapsed
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>';
     this.toggle.setAttribute('aria-expanded', String(!collapsed));
     this.toggle.setAttribute('aria-label', collapsed ? '展开代码片段' : '收起代码片段');
     this.toggle.title = collapsed ? '展开代码片段' : '收起代码片段';
