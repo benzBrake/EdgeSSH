@@ -101,7 +101,6 @@ body {
   padding: 5px max(12px, env(safe-area-inset-right)) 5px max(12px, env(safe-area-inset-left));
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--panel) 96%, transparent);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 /* Home pages own their scrolling area so the viewport scrollbar starts below
@@ -116,6 +115,16 @@ body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [d
   margin-top: var(--session-tabs-height);
   overflow-y: auto;
   padding-top: 0;
+}
+
+/* Home-oriented views use the dashboard's white/orange surface tokens. */
+body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) .session-tabs {
+  --panel: var(--home-surface, #ffffff);
+  --border: var(--home-line, #e9ecf1);
+  --surface-2: var(--home-bg, #fafbfd);
+  --muted: var(--home-muted, #667085);
+  --text: var(--home-ink, #111827);
+  background: var(--panel);
 }
 
 .session-home,
@@ -148,9 +157,10 @@ body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [d
 }
 
 .session-home[aria-current='page'] {
-  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
-  background: var(--accent-dim);
-  color: var(--text);
+  /* The home surface uses the dashboard's orange identity; session tabs keep the green terminal accent. */
+  border-color: color-mix(in srgb, var(--home-accent, #f4511e) 52%, var(--border));
+  background: var(--home-accent-soft, #fff0e9);
+  color: var(--home-accent-hover, #d53b0a);
 }
 
 .session-tab-list {
