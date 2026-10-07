@@ -57,9 +57,7 @@ export class Dashboard {
   constructor(private readonly actions: DashboardActions) {
     this.root.id = 'dashboard';
     this.root.innerHTML = `
-      <header class="home-header">
-        <div class="home-account"><span class="account-avatar">A</span><span id="account-label">验证身份中</span><a id="account-action" href="/auth/login" title="管理员登录">登录</a></div>
-      </header>
+      <header class="home-header" aria-hidden="true"></header>
       <div class="home-layout">
         <nav class="home-rail" aria-label="主导航">
           <button class="rail-item selected" id="rail-overview" aria-current="page">${icon('home')}<span>总览</span></button>
@@ -149,7 +147,7 @@ export class Dashboard {
     });
     this.keyPreviewDialog.addEventListener('cancel', (event) => { if (this.previewBusy) event.preventDefault(); });
     this.form = this.get<HTMLFormElement>('#cloud-host-form');
-    this.get('#account-action').addEventListener('click', async (event) => {
+    this.accountElement<HTMLAnchorElement>('#account-action').addEventListener('click', async (event) => {
       if (!this.authenticated) return;
       event.preventDefault();
       if (isDemoMode()) {
@@ -224,6 +222,7 @@ export class Dashboard {
   }
 
   private get<T extends HTMLElement = HTMLElement>(selector: string): T { return this.root.querySelector<T>(selector)!; }
+  private accountElement<T extends HTMLElement = HTMLElement>(selector: string): T { return document.querySelector<T>(selector)!; }
   private field(name: string): HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
     return this.form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
   }
@@ -232,11 +231,11 @@ export class Dashboard {
     try {
       const { account, provider } = await api<{ account: { username: string }; provider: string }>('/api/auth/me');
       this.authenticated = true;
-      this.get('#account-label').textContent = account.username;
-      this.get('.account-avatar').textContent = account.username.slice(0, 1).toUpperCase();
+      this.accountElement('#account-label').textContent = account.username;
       this.get('#auth-provider-label').textContent = provider === 'demo' ? '演示' : provider === 'local-dev' ? '本地开发' : provider === 'github' ? 'GitHub' : 'Access';
-      const action = this.get<HTMLAnchorElement>('#account-action');
-      action.textContent = '退出'; action.title = '退出登录'; action.href = '/api/auth/logout';
+      const action = this.accountElement<HTMLAnchorElement>('#account-action');
+      action.setAttribute('aria-label', `退出登录（${account.username}）`);
+      action.title = `退出登录（${account.username}）`; action.href = '/api/auth/logout';
       await this.refresh();
     } catch (error) {
       this.signedOut();
@@ -355,9 +354,9 @@ export class Dashboard {
     this.actions.leaveWorkspace();
     this.actions.snippets.clear();
     this.authenticated = false;
-    this.get('#account-label').textContent = '未登录';
-    const action = this.get<HTMLAnchorElement>('#account-action');
-    action.href = '/auth/login'; action.textContent = '登录'; action.title = '管理员登录';
+    this.accountElement('#account-label').textContent = '未登录';
+    const action = this.accountElement<HTMLAnchorElement>('#account-action');
+    action.href = '/auth/login'; action.setAttribute('aria-label', '管理员登录'); action.title = '管理员登录';
     this.setHosts([]);
     this.get('#host-list').textContent = '请点击右上角「登录」验证管理员身份。';
     this.root.querySelectorAll<HTMLButtonElement>('[data-add], #quick-connect, #bottom-quick, #rail-snippets').forEach((button) => { button.disabled = true; });

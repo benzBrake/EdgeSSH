@@ -310,6 +310,24 @@ body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [d
   margin-left: auto;
 }
 
+.home-account {
+  display: flex;
+  align-items: center;
+  margin-left: 5px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+
+.home-account .account-avatar {
+  border-radius: 50%;
+}
+
+.home-account .account-avatar svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 1.7;
+}
+
 .session-frame-host {
   position: fixed;
   z-index: 110;
@@ -346,7 +364,7 @@ body[data-session-frame='true'] .panel-scrim { inset: 0; }
   .session-brand { display: none; }
   .session-home { padding-inline: 8px; }
   .session-home > span:last-child { display: none; }
-  .session-tab { flex-basis: 175px; }
+  .session-tab { flex-basis: 125px; }
 }
 
 button,
