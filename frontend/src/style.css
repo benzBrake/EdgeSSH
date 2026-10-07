@@ -2,12 +2,18 @@
 
 :root {
   color-scheme: dark;
-  --bg: #080b10;
+  --bg: #0b1117;
+  --workspace-bg: #101820;
+  --workspace-glow: rgba(105, 230, 180, 0.07);
   --panel: #0d1219;
   --surface: #111820;
   --surface-2: #17212b;
   --surface-3: #1c2935;
-  --terminal: #080d12;
+  --terminal: #070b10;
+  --terminal-panel: #0d151d;
+  --terminal-toolbar: #121e28;
+  --terminal-control: #182633;
+  --terminal-border: #263847;
   --border: #253341;
   --border-soft: #19242e;
   --text: #e9f0f3;
@@ -30,11 +36,17 @@
 [data-theme='light'] {
   color-scheme: light;
   --bg: #edf2f3;
+  --workspace-bg: #e5edec;
+  --workspace-glow: rgba(18, 130, 95, 0.08);
   --panel: #f8fbfb;
   --surface: #ffffff;
   --surface-2: #edf4f3;
   --surface-3: #e4eeec;
   --terminal: #0b1217;
+  --terminal-panel: #101a21;
+  --terminal-toolbar: #16232b;
+  --terminal-control: #1b2b35;
+  --terminal-border: #304751;
   --border: #cbd9d8;
   --border-soft: #dce7e5;
   --text: #172329;
@@ -1207,8 +1219,8 @@ button:disabled {
   overflow: hidden;
   padding: 18px;
   background:
-    radial-gradient(circle at 82% 8%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 28%),
-    var(--bg);
+    radial-gradient(circle at 82% 8%, var(--workspace-glow), transparent 30%),
+    var(--workspace-bg);
 }
 
 .session-target {
@@ -1474,7 +1486,7 @@ button:disabled {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--terminal);
+  background: var(--terminal-panel);
   box-shadow: var(--shadow);
   transition: grid-template-rows 220ms cubic-bezier(0.2, 0.75, 0.2, 1);
 }
@@ -1502,8 +1514,8 @@ button:disabled {
   align-items: center;
   gap: 12px;
   padding: 0 11px;
-  border-bottom: 1px solid #1c2932;
-  background: #101820;
+  border-bottom: 1px solid var(--terminal-border);
+  background: var(--terminal-toolbar);
   color: #8799a5;
 }
 
@@ -1540,8 +1552,8 @@ button:disabled {
   justify-content: center;
   gap: 5px;
   padding: 5px 7px;
-  border-color: #263642;
-  background: #151f28;
+  border-color: var(--terminal-border);
+  background: var(--terminal-control);
   color: #8497a3;
   font-size: 10px;
 }

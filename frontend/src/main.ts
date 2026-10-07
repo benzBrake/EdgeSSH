@@ -488,6 +488,13 @@ function updateSessionTabOverflow(): void {
   updateSessionScrollButtons();
 }
 
+function syncThemeToSessions(theme: 'light' | 'dark'): void {
+  if (isSessionFrame) return;
+  for (const session of embeddedSessions.values()) {
+    session.iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'theme', theme }, location.origin);
+  }
+}
+
 function updateSessionScrollButtons(): void {
   const { list, scrollLeft, scrollRight } = sessionUI;
   scrollLeft.disabled = list.scrollLeft <= 1;
@@ -598,7 +605,10 @@ function openEmbeddedSession(profile?: SavedProfile): void {
   if (profile) url.searchParams.set('profileId', profile.id);
   if (new URLSearchParams(location.search).get('demo') === '1') url.searchParams.set('demo', '1');
   iframe.src = `${url.pathname}${url.search}`;
-  iframe.addEventListener('load', () => iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'language', language: currentLanguage }, location.origin));
+  iframe.addEventListener('load', () => {
+    iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'language', language: currentLanguage }, location.origin);
+    iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'theme', theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark' }, location.origin);
+  });
   sessionUI.frameHost.append(iframe);
   embeddedSessions.set(id, { id, label, fixedLabel: Boolean(profile), iframe, state: 'connecting' });
   activeEmbeddedSessionId = id;
@@ -657,6 +667,7 @@ if (!isSessionFrame) {
     if (event.origin !== location.origin || event.source !== window.parent || event.data?.source !== 'edgessh-parent') return;
     if (event.data.type === 'session-focus') dashboard?.openWorkspace();
     if (event.data.type === 'language' && (event.data.language === 'zh-CN' || event.data.language === 'en')) applyLanguage(event.data.language);
+    if (event.data.type === 'theme' && (event.data.theme === 'light' || event.data.theme === 'dark')) document.documentElement.dataset.theme = event.data.theme;
   });
 }
 
@@ -2450,6 +2461,7 @@ languageMenu.querySelectorAll<HTMLButtonElement>('[data-language-choice]').forEa
 ui.themeToggle.addEventListener('click', () => {
   const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
   document.documentElement.dataset.theme = next;
+  syncThemeToSessions(next);
   try { localStorage.setItem(THEME_STORAGE_KEY, next); } catch { /* Theme still applies for this page. */ }
 });
 ui.hostKeyDialog.addEventListener('cancel', (cancelEvent) => {
