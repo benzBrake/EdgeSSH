@@ -117,8 +117,8 @@ body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [d
   padding-top: 0;
 }
 
-/* Home-oriented views use the dashboard's white/orange surface tokens. */
-body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) .session-tabs {
+/* Light home views align the session bar with the dashboard's white/orange surface tokens. */
+html[data-theme='light'] body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) .session-tabs {
   --panel: var(--home-surface, #ffffff);
   --border: var(--home-line, #e9ecf1);
   --surface-2: var(--home-bg, #fafbfd);
@@ -174,10 +174,16 @@ body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [d
 }
 
 .session-home[aria-current='page'] {
-  /* The home surface uses the dashboard's orange identity; session tabs keep the green terminal accent. */
+  /* The home tab keeps the dashboard's orange identity in both themes. */
   border-color: color-mix(in srgb, var(--home-accent, #f4511e) 52%, var(--border));
   background: var(--home-accent-soft, #fff0e9);
   color: var(--home-accent-hover, #d53b0a);
+}
+
+html[data-theme='dark'] .session-home[aria-current='page'] {
+  border-color: color-mix(in srgb, var(--home-accent, #f4511e) 58%, var(--border));
+  background: color-mix(in srgb, var(--home-accent, #f4511e) 16%, transparent);
+  color: var(--home-accent, #f4511e);
 }
 
 .session-tab-list {

@@ -19,6 +19,27 @@ async function dashboardFixture(page: Page) {
   await page.goto('/');
 }
 
+test('首页切换暗色模式时只更新会话栏主题', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('workers-webssh.theme', 'light'));
+  await dashboardFixture(page);
+
+  const sessionBar = page.locator('#session-tabs');
+  const homeTab = page.locator('#session-home');
+  const dashboard = page.locator('#dashboard');
+  const lightBarBackground = await sessionBar.evaluate((element) => getComputedStyle(element).backgroundColor);
+  const lightHomeTabColor = await homeTab.evaluate((element) => getComputedStyle(element).color);
+  const lightDashboardBackground = await dashboard.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+  if (page.viewportSize()!.width <= 600) await page.locator('#session-menu-toggle').click();
+  await page.locator('#theme-toggle').click();
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect.poll(() => sessionBar.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(lightBarBackground);
+  await expect.poll(() => homeTab.evaluate((element) => getComputedStyle(element).color)).toBe('rgb(244, 81, 30)');
+  expect(await homeTab.evaluate((element) => getComputedStyle(element).color)).not.toBe(lightHomeTabColor);
+  await expect.poll(() => dashboard.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(lightDashboardBackground);
+});
+
 test('会话栏在无会话和关闭最后一个会话后常驻显示', async ({ page }) => {
   await dashboardFixture(page);
   const bar = page.locator('#session-tabs');
