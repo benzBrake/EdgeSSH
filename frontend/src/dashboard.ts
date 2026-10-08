@@ -44,6 +44,8 @@ export class Dashboard {
   private isHome = true;
   private paused = false;
   private authenticated = false;
+  private accountUsername = '';
+  private language: 'zh-CN' | 'en' = 'zh-CN';
   private returnFocus?: HTMLElement;
   private readonly dialog: HTMLDialogElement;
   private readonly keyPreviewDialog: HTMLDialogElement;
@@ -229,12 +231,9 @@ export class Dashboard {
     try {
       const { account, provider } = await api<{ account: { username: string }; provider: string }>('/api/auth/me');
       this.authenticated = true;
-      this.accountElement('#account-label').textContent = `退出登录（${account.username}）`;
+      this.accountUsername = account.username;
       this.get('#auth-provider-label').textContent = provider === 'demo' ? '演示' : provider === 'local-dev' ? '本地开发' : provider === 'github' ? 'GitHub' : 'Access';
-      const action = this.accountElement<HTMLAnchorElement>('#account-action');
-      action.setAttribute('aria-label', `退出登录（${account.username}）`);
-      action.title = `退出登录（${account.username}）`; action.href = '/api/auth/logout';
-      this.setAccountIcon(true);
+      this.renderAccount();
       await this.refresh();
     } catch (error) {
       this.signedOut();
@@ -354,14 +353,24 @@ export class Dashboard {
     this.accountElement('#account-logout-icon').toggleAttribute('hidden', !authenticated);
   }
 
+  private renderAccount(): void {
+    const label = this.authenticated
+      ? this.language === 'en' ? `Sign out (${this.accountUsername})` : `退出登录（${this.accountUsername}）`
+      : this.language === 'en' ? 'Administrator sign-in' : '管理员登录';
+    this.accountElement('#account-label').textContent = label;
+    const action = this.accountElement<HTMLAnchorElement>('#account-action');
+    action.href = this.authenticated ? '/api/auth/logout' : '/auth/login';
+    action.setAttribute('aria-label', label);
+    action.title = label;
+    this.setAccountIcon(this.authenticated);
+  }
+
   private signedOut(): void {
     this.actions.leaveWorkspace();
     this.actions.snippets.clear();
     this.authenticated = false;
-    this.accountElement('#account-label').textContent = '管理员登录';
-    const action = this.accountElement<HTMLAnchorElement>('#account-action');
-    action.href = '/auth/login'; action.setAttribute('aria-label', '管理员登录'); action.title = '管理员登录';
-    this.setAccountIcon(false);
+    this.accountUsername = '';
+    this.renderAccount();
     this.setHosts([]);
     this.get('#host-list').textContent = '请点击右上角「登录」验证管理员身份。';
     this.root.querySelectorAll<HTMLButtonElement>('[data-add], #quick-connect, #bottom-quick, #rail-snippets').forEach((button) => { button.disabled = true; });
@@ -509,6 +518,7 @@ export class Dashboard {
   }
 
   setLanguage(language: 'zh-CN' | 'en'): void {
+    this.language = language;
     const english: Record<string, string> = {
       '总览': 'Overview', '主机': 'Hosts', '文件管理': 'Files', '代码片段': 'Snippets', '端口转发': 'Port forwarding', '快速连接': 'Quick connect',
       '我的主机': 'My hosts', '安全保存，随处连接。': 'Save securely, connect anywhere.', '添加主机': 'Add host', '新建主机': 'New host', '＋ 新建主机': '+ New host', '＋ 添加主机': '+ Add host',
@@ -554,6 +564,7 @@ export class Dashboard {
         if (value && copy[value]) element.setAttribute(attribute, copy[value]);
       }
     });
+    this.renderAccount();
   }
 
   private async openKeyPreview(): Promise<void> {

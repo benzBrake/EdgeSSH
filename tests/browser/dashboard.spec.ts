@@ -40,6 +40,17 @@ test('首页切换暗色模式时只更新会话栏主题', async ({ page }) => 
   await expect.poll(() => dashboard.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(lightDashboardBackground);
 });
 
+test('账户入口跟随当前语言显示', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('workers-webssh.language', 'en'));
+  await dashboardFixture(page);
+
+  const account = page.locator('#account-action');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('#account-label')).toHaveText('Sign out (local-development)');
+  await expect(account).toHaveAttribute('aria-label', 'Sign out (local-development)');
+  await expect(account).toHaveAttribute('title', 'Sign out (local-development)');
+});
+
 test('会话栏在无会话和关闭最后一个会话后常驻显示', async ({ page }) => {
   await dashboardFixture(page);
   const bar = page.locator('#session-tabs');

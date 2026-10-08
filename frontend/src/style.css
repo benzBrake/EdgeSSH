@@ -117,6 +117,11 @@ body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [d
   padding-top: 0;
 }
 
+body[data-view='workspace']:not([data-session-frame='true']) #app {
+  height: calc(100% - var(--session-tabs-height));
+  margin-top: var(--session-tabs-height);
+}
+
 /* Light home views align the session bar with the dashboard's white/orange surface tokens. */
 html[data-theme='light'] body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) .session-tabs {
   --panel: var(--home-surface, #ffffff);

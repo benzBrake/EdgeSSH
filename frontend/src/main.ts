@@ -504,10 +504,10 @@ function updateSessionScrollButtons(): void {
 function revealActiveSessionTab(): void {
   const tab = sessionUI.list.querySelector<HTMLElement>('[aria-selected="true"]');
   if (!tab) return;
-  const listRect = sessionUI.list.getBoundingClientRect();
-  const tabRect = tab.getBoundingClientRect();
-  if (tabRect.left < listRect.left) sessionUI.list.scrollLeft += tabRect.left - listRect.left;
-  else if (tabRect.right > listRect.right) sessionUI.list.scrollLeft += tabRect.right - listRect.right;
+  const maxScroll = sessionUI.list.scrollWidth - sessionUI.list.clientWidth;
+  const tabLeft = tab.offsetLeft - sessionUI.list.offsetLeft;
+  const centered = tabLeft - (sessionUI.list.clientWidth - tab.offsetWidth) / 2;
+  sessionUI.list.scrollLeft = Math.max(0, Math.min(maxScroll, centered));
   updateSessionScrollButtons();
 }
 
@@ -621,8 +621,8 @@ if (!isSessionFrame) {
     revealActiveSessionTab();
   }).observe(sessionUI.root);
   sessionUI.list.addEventListener('scroll', updateSessionScrollButtons);
-  sessionUI.scrollLeft.addEventListener('click', () => sessionUI.list.scrollBy({ left: -sessionUI.list.clientWidth, behavior: 'smooth' }));
-  sessionUI.scrollRight.addEventListener('click', () => sessionUI.list.scrollBy({ left: sessionUI.list.clientWidth, behavior: 'smooth' }));
+  sessionUI.scrollLeft.addEventListener('click', () => sessionUI.list.scrollBy({ left: -sessionUI.list.clientWidth, behavior: 'instant' }));
+  sessionUI.scrollRight.addEventListener('click', () => sessionUI.list.scrollBy({ left: sessionUI.list.clientWidth, behavior: 'instant' }));
   let lastSessionWheelTime = -Infinity;
   sessionUI.root.addEventListener('wheel', (event) => {
     if (event.ctrlKey || embeddedSessions.size < 2) return;
