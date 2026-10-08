@@ -2582,7 +2582,16 @@ async function initialize(): Promise<void> {
       if (document.getElementById('command-editor')!.hidden) document.getElementById('command-editor-toggle')!.click();
       input.focus();
       toast(bilingual('已填入命令编辑器，确认后再发送。', 'Added to the command editor. Review before sending.'), 'info');
-    }, () => dashboard?.openWorkspace(), () => dashboard?.showSnippets(true)),
+    }, () => {
+      // 多 Tab 模式下，父页面返回当前会话 Tab；仅 session iframe 内切换自身工作台。
+      if (isSessionFrame) {
+        dashboard?.openWorkspace();
+      } else if (activeEmbeddedSessionId) {
+        activateEmbeddedSession(activeEmbeddedSessionId);
+      } else {
+        dashboard?.show();
+      }
+    }, () => dashboard?.showSnippets(true)),
     refresh: async () => {
       profiles = await loadProfiles();
       renderProfiles();

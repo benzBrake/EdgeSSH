@@ -495,7 +495,7 @@ button:disabled {
 
 .topbar {
   position: relative;
-  z-index: 30;
+  z-index: 100;
   display: flex;
   height: var(--topbar-height);
   align-items: center;
