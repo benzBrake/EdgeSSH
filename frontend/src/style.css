@@ -161,8 +161,8 @@ body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [d
   white-space: nowrap;
 }
 
-.session-brand > span:last-child { color: var(--home-accent, var(--accent)); }
-.session-brand .brand-chevron { margin-right: 8px; color: var(--home-accent, var(--accent)); font-family: var(--mono); font-size: 22px; }
+.session-brand .brand-wordmark > span { color: var(--home-accent, var(--accent)); }
+.session-brand .brand-chevron { flex: 0 0 auto; margin-right: 8px; color: var(--home-accent, var(--accent)); font-family: var(--mono); font-size: 22px; }
 .session-brand:hover { color: var(--text); text-decoration: none; }
 
 .session-home:hover,
@@ -361,7 +361,7 @@ body[data-session-frame='true'] .panel-scrim { inset: 0; }
   :root { --session-tabs-height: 42px; }
   .session-tabs { padding-block: 4px; }
   .session-frame-host { top: var(--session-tabs-height); }
-  .session-brand { display: none; }
+  .session-brand .brand-wordmark { display: none; }
   .session-home { padding-inline: 8px; }
   .session-home > span:last-child { display: none; }
   .session-tab { flex-basis: 125px; }
