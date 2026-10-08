@@ -592,7 +592,7 @@ function closeEmbeddedSession(id: string): void {
   } else renderEmbeddedSessionTabs();
 }
 
-function openEmbeddedSession(profile?: SavedProfile): void {
+function openEmbeddedSession(profile?: SavedProfile, connectionTab: 'saved' | 'temporary' = 'saved'): void {
   if (isSessionFrame) return;
   const id = crypto.randomUUID();
   const label = profile?.name || (profile ? targetLabel(profile.host, profile.port, profile.username) : bilingual('临时连接', 'Temporary session'));
@@ -604,6 +604,7 @@ function openEmbeddedSession(profile?: SavedProfile): void {
   url.hash = '';
   url.searchParams.set('sessionFrame', '1');
   url.searchParams.set('sessionId', id);
+  if (connectionTab === 'temporary') url.searchParams.set('connectionTab', connectionTab);
   if (profile) url.searchParams.set('profileId', profile.id);
   if (new URLSearchParams(location.search).get('demo') === '1') url.searchParams.set('demo', '1');
   iframe.src = `${url.pathname}${url.search}`;
@@ -2716,10 +2717,11 @@ async function initialize(): Promise<void> {
     },
     quickConnect: () => {
       if (!isSessionFrame) {
-        openEmbeddedSession();
+        openEmbeddedSession(undefined, 'temporary');
         return;
       }
       clearForm();
+      setConnectionPanelTab('temporary');
       dashboard?.openWorkspace();
       setPanelOpen(true);
       requestAnimationFrame(() => { fitTerminal(false); ui.host.focus(); });
@@ -2762,6 +2764,7 @@ async function initialize(): Promise<void> {
         setState('error');
       }
     } else {
+      if (new URLSearchParams(location.search).get('connectionTab') === 'temporary') setConnectionPanelTab('temporary');
       setPanelOpen(true);
       requestAnimationFrame(() => ui.host.focus());
     }

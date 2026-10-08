@@ -66,7 +66,7 @@ export class Dashboard {
           <button class="rail-item" id="rail-files">${icon('folder')}<span>文件管理</span></button>
           <button class="rail-item" id="rail-snippets">${icon('snippets')}<span>代码片段</span></button>
           <button class="rail-item" id="rail-forward">${icon('forward')}<span>端口转发</span></button>
-          <button class="rail-item" id="quick-connect">${icon('terminal')}<span>快速连接</span></button>
+          <button class="rail-item" id="quick-connect">${icon('terminal')}<span>临时连接</span></button>
           <span class="rail-security" title="管理员身份认证">${icon('shield')}<span id="auth-provider-label">身份<br>保护</span></span>
         </nav>
         <main class="home-content">
@@ -502,7 +502,7 @@ export class Dashboard {
   setLanguage(language: 'zh-CN' | 'en'): void {
     this.language = language;
     const english: Record<string, string> = {
-      '总览': 'Overview', '主机': 'Hosts', '文件管理': 'Files', '代码片段': 'Snippets', '端口转发': 'Port forwarding', '快速连接': 'Quick connect',
+      '总览': 'Overview', '主机': 'Hosts', '文件管理': 'Files', '代码片段': 'Snippets', '端口转发': 'Port forwarding',
       '我的主机': 'My hosts', '安全保存，随处连接。': 'Save securely, connect anywhere.', '添加主机': 'Add host', '新建主机': 'New host', '＋ 新建主机': '+ New host', '＋ 添加主机': '+ Add host',
       '主机地址': 'Host address', '搜索主机、分组或 IP 地址': 'Search hosts, groups, or IP addresses', '刷新列表 ↻': 'Refresh list ↻',
       '散布全球，': 'Around the world,', '就在手边。': 'right at hand.', '点击国旗，即刻连接。': 'Click a flag to connect.', '暂停旋转': 'Pause rotation',
