@@ -122,6 +122,19 @@ body[data-view='workspace']:not([data-session-frame='true']) #app {
   margin-top: var(--session-tabs-height);
 }
 
+body[data-view='workspace'] .app-shell {
+  height: 100%;
+}
+
+body[data-view='workspace'] .connection-panel {
+  top: 50%;
+  max-height: calc(100dvh - 32px);
+}
+
+body[data-view='workspace'] .panel-scrim {
+  inset: 0;
+}
+
 /* Light home views align the session bar with the dashboard's white/orange surface tokens. */
 html[data-theme='light'] body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) .session-tabs {
   --panel: var(--home-surface, #ffffff);
