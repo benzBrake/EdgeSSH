@@ -84,11 +84,13 @@ test('终端浮窗折叠、拖动与键盘复位；填入草稿而不执行，�
   await panel.getByRole('button', { name: '编辑 查看磁盘空间', exact: true }).click();
   await page.getByRole('dialog').getByLabel('名称').fill('磁盘概况');
   await page.getByRole('button', { name: '保存片段', exact: true }).click();
-  await panel.getByRole('button', { name: '管理代码片段', exact: true }).click();
+  await panel.locator('.snippet-manage').evaluate((element) => (element as HTMLButtonElement).click());
   await expect(page.locator('#snippets-page').getByRole('heading', { name: '磁盘概况', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '返回终端', exact: true }).click();
   expect(files.calls.filter((call) => call.type === 'connect')).toHaveLength(1);
-  await expect(panel).toBeVisible();
+  await page.locator('#rail-files').click();
+  await page.locator('#files-terminal').click();
+  await expect(page.locator('#snippet-panel')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('snippet-terminal.png'), fullPage: true });
 });
@@ -121,13 +123,20 @@ test('加载与保存错误可重试，不丢失草稿；空列表不补回默�
 
 test('多行片段保留换行且不直接发送；取消覆盖保留旧草稿，登出清空片段', async ({ page }) => {
   const files = await fixture(page);
-  await page.locator('#rail-snippets').click();
+  await connectFiles(page);
+  await page.locator('#files-terminal').click();
+  const panel = page.locator('#snippet-panel');
+  await expect(panel).toBeVisible();
+  const expandPanel = panel.getByRole('button', { name: '展开代码片段' });
+  if (await expandPanel.count()) await expandPanel.click();
+  await panel.locator('.snippet-manage').evaluate((element) => (element as HTMLButtonElement).click());
   await page.locator('#snippets-page').getByRole('button', { name: '＋ 新建片段' }).click();
   await page.getByRole('dialog').getByLabel('名称').fill('多行脚本');
   await page.getByRole('dialog').getByLabel('命令', { exact: true }).fill('echo a\n# 注释\necho b');
   await page.getByRole('button', { name: '保存片段', exact: true }).click();
   await page.getByRole('button', { name: '返回终端', exact: true }).click();
-  const panel = page.locator('#snippet-panel');
+  await page.locator('#rail-files').click();
+  await page.locator('#files-terminal').click();
   if (await panel.getByRole('button', { name: '展开代码片段' }).count()) await panel.getByRole('button', { name: '展开代码片段' }).click();
   await panel.getByRole('button', { name: '使用 多行脚本', exact: true }).click();
   await expect(page.locator('#command-editor-input')).toHaveValue('echo a\n# 注释\necho b');
