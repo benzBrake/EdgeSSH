@@ -162,17 +162,33 @@
             </button>
           </div>
 
-          <section class="profiles-section" aria-labelledby="profiles-title">
-            <div class="section-title-row">
-              <h2 id="profiles-title" data-i18n-zh="云端主机" data-i18n-en="Cloud hosts">云端主机</h2>
+          <div class="connection-tabs" role="tablist" aria-label="连接类型" data-i18n-aria-label-zh="连接类型" data-i18n-aria-label-en="Connection type">
+            <button id="saved-tab" class="connection-tab active" type="button" role="tab" aria-selected="true" aria-controls="saved-panel" data-i18n-zh="已保存" data-i18n-en="Saved">已保存</button>
+            <button id="temporary-tab" class="connection-tab" type="button" role="tab" aria-selected="false" aria-controls="temporary-panel" data-i18n-zh="临时" data-i18n-en="Temporary">临时</button>
+          </div>
+
+          <section id="saved-panel" class="connection-tab-panel" role="tabpanel" aria-labelledby="saved-tab">
+            <label class="connection-search">
+              <span class="sr-only" data-i18n-zh="搜索已保存主机" data-i18n-en="Search saved hosts">搜索已保存主机</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg>
+              <input id="saved-search" type="search" placeholder="搜索主机、地址或用户名" data-i18n-placeholder-zh="搜索主机、地址或用户名" data-i18n-placeholder-en="Search hosts, addresses, or usernames" />
               <span id="profile-count" class="count-badge">0</span>
-            </div>
-            <div id="profile-list" class="profile-list">
-              <p class="empty-list" data-i18n-zh="暂无历史记录" data-i18n-en="No connection history yet.">暂无历史记录</p>
-            </div>
+            </label>
+            <div id="profile-list" class="profile-list"></div>
           </section>
 
-          <form id="connection-form" class="connection-form" autocomplete="off" novalidate>
+          <section id="temporary-panel" class="connection-tab-panel" role="tabpanel" aria-labelledby="temporary-tab" hidden>
+            <div class="temporary-history-heading">
+              <h2 data-i18n-zh="最近临时连接" data-i18n-en="Recent temporary connections">最近临时连接</h2>
+              <span id="temporary-count" class="count-badge">0</span>
+            </div>
+            <label class="connection-search temporary-search">
+              <span class="sr-only" data-i18n-zh="搜索临时主机" data-i18n-en="Search temporary hosts">搜索临时主机</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg>
+              <input id="temporary-search" type="search" placeholder="搜索临时主机" data-i18n-placeholder-zh="搜索临时主机" data-i18n-placeholder-en="Search temporary hosts" />
+            </label>
+            <div id="temporary-list" class="profile-list temporary-list"></div>
+            <form id="connection-form" class="connection-form" autocomplete="off" novalidate>
             <input id="profile-id" type="hidden" />
             <div class="field-grid host-grid">
               <label class="field">
@@ -308,13 +324,14 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
               </button>
             </div>
-          </form>
+            </form>
 
           <p
             class="privacy-note"
-            data-i18n-zh="成功连接后，主机资料、密码或私钥会使用 Worker 密钥加密并保存至 D1。浏览器不持久化凭据。"
-            data-i18n-en="Successful connections save host details and credentials encrypted in D1. Credentials are not persisted in the browser."
-          >成功连接后，主机资料、密码或私钥会使用 Worker 密钥加密并保存至 D1。浏览器不持久化凭据。</p>
+            data-i18n-zh="临时连接记录仅保存在此浏览器，不包含密码或私钥。"
+            data-i18n-en="Temporary connection history stays in this browser and excludes passwords and private keys."
+          >临时连接记录仅保存在此浏览器，不包含密码或私钥。</p>
+          </section>
         </aside>
 
         <main class="workspace">

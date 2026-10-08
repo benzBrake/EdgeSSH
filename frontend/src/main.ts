@@ -30,20 +30,12 @@ interface LocalizedMessage {
 }
 
 type SavedProfile = CloudHost & Credentials;
+type TemporaryProfile = Pick<CloudHost, 'host' | 'port' | 'username' | 'authMethod' | 'initialCommand' | 'termType' | 'encoding' | 'fingerprint' | 'updatedAt'>;
 
 interface PendingHistory {
   generation: number;
   target: string;
   profile: Promise<SavedProfile>;
-}
-
-type HistoryMutation =
-  | { kind: 'upsert'; profile: SavedProfile }
-  | { kind: 'delete'; target: string };
-
-interface HistoryMutationResult {
-  persisted: boolean;
-  applied: boolean;
 }
 
 interface ConnectionConfig {
@@ -115,6 +107,7 @@ declare global {
 
 const THEME_STORAGE_KEY = 'workers-webssh.theme';
 const LANGUAGE_STORAGE_KEY = 'workers-webssh.language';
+const TEMPORARY_HISTORY_KEY = 'workers-webssh.temporary-hosts.v1';
 const MAX_KEY_BYTES = 131_072;
 const PING_INTERVAL_MS = 25_000;
 const CLIENT_CLOSE_SESSION_ERROR = 4000;
@@ -261,6 +254,14 @@ const ui = {
   panelScrim: element<HTMLButtonElement>('panel-scrim'),
   profileList: element<HTMLElement>('profile-list'),
   profileCount: element<HTMLElement>('profile-count'),
+  savedTab: element<HTMLButtonElement>('saved-tab'),
+  temporaryTab: element<HTMLButtonElement>('temporary-tab'),
+  savedPanel: element<HTMLElement>('saved-panel'),
+  temporaryPanel: element<HTMLElement>('temporary-panel'),
+  savedSearch: element<HTMLInputElement>('saved-search'),
+  temporarySearch: element<HTMLInputElement>('temporary-search'),
+  temporaryList: element<HTMLElement>('temporary-list'),
+  temporaryCount: element<HTMLElement>('temporary-count'),
   form: element<HTMLFormElement>('connection-form'),
   profileId: element<HTMLInputElement>('profile-id'),
   host: element<HTMLInputElement>('host'),
@@ -407,6 +408,8 @@ function applyLanguage(language: Language, persist = false): void {
   if (processManager) processManager.setLanguage();
   dashboard?.setLanguage(language);
   terminalTools?.refreshLanguage();
+  renderProfiles();
+  renderTemporaryProfiles();
 
   if (persist) {
     try { localStorage.setItem(LANGUAGE_STORAGE_KEY, language); } catch { /* Language still applies for this page. */ }
@@ -414,6 +417,8 @@ function applyLanguage(language: Language, persist = false): void {
 }
 
 let profiles: SavedProfile[] = [];
+let temporaryProfiles: TemporaryProfile[] = [];
+let connectionPanelTab: 'saved' | 'temporary' = 'saved';
 let dashboard: Dashboard | undefined;
 let filePage: FilePage | undefined;
 let hostKeys: Record<string, string> = {};
@@ -442,10 +447,8 @@ let passwordDirty = false;
 let pendingHistory: PendingHistory | null = null;
 let historyPasswordLoading = false;
 let historyPasswordLoadGeneration = 0;
-let historyMutationSequence = 0;
 let keyFileReadGeneration = 0;
 let profileSaveTask: Promise<void> = Promise.resolve();
-const latestHistoryMutation = new Map<string, number>();
 let panelOpen = false;
 let fileManager: FileManager;
 let fileTree: FileTree;
@@ -1000,21 +1003,24 @@ async function loadProfiles(): Promise<SavedProfile[]> {
   return saved;
 }
 
-async function persistHistoryMutation(mutation: HistoryMutation): Promise<HistoryMutationResult> {
+function loadTemporaryProfiles(): TemporaryProfile[] {
   try {
-    if (mutation.kind === 'upsert') {
-      const profile = mutation.profile;
-      const existing = profiles.find((host) => host.id === profile.id);
-      await saveHost(profile, existing?.id);
-    } else {
-      const profile = profiles.find((host) => passwordContext(host) === mutation.target);
-      if (profile) await removeHost(profile.id);
-    }
-    profiles = await loadProfiles();
-    return { persisted: true, applied: true };
+    const value: unknown = JSON.parse(localStorage.getItem(TEMPORARY_HISTORY_KEY) ?? '[]');
+    if (!Array.isArray(value)) return [];
+    return value.filter((entry): entry is TemporaryProfile => Boolean(entry && typeof entry === 'object'
+      && typeof entry.host === 'string' && Number.isInteger(entry.port)
+      && typeof entry.username === 'string'
+      && (entry.authMethod === 'password' || entry.authMethod === 'publickey')
+      && typeof entry.initialCommand === 'string' && typeof entry.termType === 'string'
+      && typeof entry.encoding === 'string' && typeof entry.fingerprint === 'string'
+      && Number.isFinite(entry.updatedAt))).slice(0, 30);
   } catch {
-    return { persisted: false, applied: false };
+    return [];
   }
+}
+
+function persistTemporaryProfiles(): void {
+  localStorage.setItem(TEMPORARY_HISTORY_KEY, JSON.stringify(temporaryProfiles));
 }
 
 async function replaceRememberedHostKey(target: string, fingerprint: string): Promise<void> {
@@ -1226,70 +1232,86 @@ async function saveConnectedProfile(): Promise<void> {
   if (!pendingHistory || pendingHistory.generation !== connectGeneration) return;
   const operation = pendingHistory;
   pendingHistory = null;
-  const connectedAt = Date.now();
-  const mutation = ++historyMutationSequence;
-  latestHistoryMutation.set(operation.target, mutation);
   let profile: SavedProfile;
   try {
     profile = await operation.profile;
   } catch {
     return;
   }
-  if (passwordContext(profile) !== operation.target || latestHistoryMutation.get(operation.target) !== mutation) return;
-  const key = targetKey(profile.host, profile.port, profile.username);
-  const rememberedFingerprint = key === currentTargetKey && currentRememberedFingerprint
-    ? currentRememberedFingerprint
-    : hostKeys[key] || profile.fingerprint || '';
-  const saved: SavedProfile = {
-    ...profile,
-    fingerprint: rememberedFingerprint,
-    updatedAt: connectedAt,
-  };
-  if (historyPasswordLoading && targetKey() === operation.target) {
-    historyPasswordLoadGeneration++;
-    historyPasswordLoading = false;
-    setState(connectionState);
-  }
-  const result = await persistHistoryMutation({ kind: 'upsert', profile: saved });
-  if (!result.persisted) {
-    renderProfiles();
-    throw new Error('History persistence failed');
-  }
-  const retained = profiles.find((item) => passwordContext(item) === operation.target);
-  if (targetKey() === operation.target && retained) ui.profileId.value = retained.id;
-  renderProfiles();
-  if (!result.applied) return;
-  toast(bilingual('主机已加密保存至云端。', 'Host encrypted and saved to the cloud.'));
+  if (passwordContext(profile) !== operation.target) return;
+  const key = passwordContext(profile);
+  temporaryProfiles = [
+    {
+      host: profile.host,
+      port: profile.port,
+      username: profile.username,
+      authMethod: profile.authMethod,
+      initialCommand: profile.initialCommand,
+      termType: profile.termType,
+      encoding: profile.encoding,
+      fingerprint: currentRememberedFingerprint || hostKeys[key] || profile.fingerprint || '',
+      updatedAt: Date.now(),
+    },
+    ...temporaryProfiles.filter((entry) => historyKey(entry.host, entry.port, entry.username) !== key),
+  ].slice(0, 30);
+  persistTemporaryProfiles();
+  renderTemporaryProfiles();
 }
 
 async function deleteProfile(id: string): Promise<void> {
   const removed = profiles.find((profile) => profile.id === id);
   if (!removed) return;
   const target = passwordContext(removed);
-  latestHistoryMutation.set(target, ++historyMutationSequence);
-  const result = await persistHistoryMutation({ kind: 'delete', target });
-  if (!result.persisted) {
+  try {
+    await removeHost(id);
+    profiles = await loadProfiles();
+  } catch {
     renderProfiles();
-    toast(bilingual('无法删除此历史记录。', 'This history entry could not be deleted.'), 'error');
+    toast(bilingual('无法删除已保存主机。', 'This saved host could not be deleted.'), 'error');
     return;
   }
   if (targetKey() === target) clearForm();
   else renderProfiles();
 }
 
+function deleteTemporaryProfile(key: string): void {
+  temporaryProfiles = temporaryProfiles.filter((entry) => historyKey(entry.host, entry.port, entry.username) !== key);
+  try {
+    persistTemporaryProfiles();
+    renderTemporaryProfiles();
+  } catch {
+    toast(bilingual('无法删除此临时记录。', 'This temporary entry could not be deleted.'), 'error');
+  }
+}
+
+function setConnectionPanelTab(tab: 'saved' | 'temporary'): void {
+  connectionPanelTab = tab;
+  const saved = tab === 'saved';
+  ui.savedTab.classList.toggle('active', saved);
+  ui.savedTab.setAttribute('aria-selected', String(saved));
+  ui.savedPanel.hidden = !saved;
+  ui.temporaryTab.classList.toggle('active', !saved);
+  ui.temporaryTab.setAttribute('aria-selected', String(!saved));
+  ui.temporaryPanel.hidden = saved;
+  renderProfiles();
+  renderTemporaryProfiles();
+}
+
 function renderProfiles(): void {
   dashboard?.setHosts(profiles);
   ui.profileList.replaceChildren();
-  ui.profileCount.textContent = String(profiles.length);
-  if (profiles.length === 0) {
+  const query = ui.savedSearch.value.trim().toLowerCase();
+  const visible = profiles.filter((profile) => !query || `${profile.name} ${profile.host} ${profile.username} ${profile.port}`.toLowerCase().includes(query));
+  ui.profileCount.textContent = String(visible.length);
+  if (visible.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'empty-list';
-    empty.textContent = bilingual('暂无历史记录', 'No connection history yet.');
+    empty.textContent = query ? bilingual('没有匹配的已保存主机', 'No saved hosts match your search.') : bilingual('暂无已保存主机', 'No saved hosts yet.');
     ui.profileList.append(empty);
     return;
   }
 
-  for (const profile of profiles) {
+  for (const profile of visible) {
     const card = document.createElement('div');
     card.className = `profile-card${profile.id === ui.profileId.value ? ' active' : ''}`;
 
@@ -1305,6 +1327,7 @@ function renderProfiles(): void {
     const title = document.createElement('strong');
     const label = targetLabel(profile.host, profile.port, profile.username);
     title.textContent = label;
+    main.setAttribute('aria-label', bilingual(`连接 ${label}`, `Connect to ${label}`));
     const lastConnected = document.createElement('time');
     const connectedAt = new Date(Math.min(profile.updatedAt, Date.now()));
     lastConnected.dateTime = connectedAt.toISOString();
@@ -1321,6 +1344,48 @@ function renderProfiles(): void {
     remove.textContent = '\u00d7';
     card.append(main, remove);
     ui.profileList.append(card);
+  }
+}
+
+function renderTemporaryProfiles(): void {
+  ui.temporaryList.replaceChildren();
+  const query = ui.temporarySearch.value.trim().toLowerCase();
+  const visible = temporaryProfiles.filter((profile) => !query || `${profile.host} ${profile.username} ${profile.port}`.toLowerCase().includes(query));
+  ui.temporaryCount.textContent = String(visible.length);
+  if (visible.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'empty-list';
+    empty.textContent = query ? bilingual('没有匹配的临时主机', 'No temporary hosts match your search.') : bilingual('暂无临时连接记录', 'No temporary connection history yet.');
+    ui.temporaryList.append(empty);
+    return;
+  }
+  for (const profile of visible) {
+    const key = historyKey(profile.host, profile.port, profile.username);
+    const card = document.createElement('div');
+    card.className = 'profile-card';
+    const main = document.createElement('button');
+    main.className = 'profile-main';
+    main.type = 'button';
+    main.dataset.temporaryKey = key;
+    const avatar = document.createElement('span');
+    avatar.className = 'profile-avatar';
+    avatar.textContent = profile.username.slice(0, 2).toUpperCase();
+    const copy = document.createElement('span');
+    copy.className = 'profile-copy';
+    const title = document.createElement('strong');
+    title.textContent = targetLabel(profile.host, profile.port, profile.username);
+    const time = document.createElement('time');
+    time.textContent = bilingual(`最近连接：${new Intl.DateTimeFormat(currentLanguage, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(profile.updatedAt))}`, `Last connected: ${new Intl.DateTimeFormat(currentLanguage, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(profile.updatedAt))}`);
+    copy.append(title, time);
+    main.append(avatar, copy);
+    const remove = document.createElement('button');
+    remove.className = 'profile-delete';
+    remove.type = 'button';
+    remove.dataset.deleteTemporary = key;
+    remove.setAttribute('aria-label', bilingual(`删除 ${title.textContent}`, `Delete ${title.textContent}`));
+    remove.textContent = '\u00d7';
+    card.append(main, remove);
+    ui.temporaryList.append(card);
   }
 }
 
@@ -2005,6 +2070,10 @@ async function connect(): Promise<void> {
   ui.metricHostKey.textContent = '--';
   event(bilingual(`正在连接 ${currentTargetLabel}`, `Starting ${currentTargetLabel}`), 'connect');
 
+  const historyProfile = readProfileFromForm(ui.password.value);
+  const existingProfile = profiles.find((item) => passwordContext(item) === currentTargetKey);
+  pendingHistory = existingProfile ? null : { generation, target: currentTargetKey, profile: historyProfile };
+
   if (isDemoMode()) {
     demoStart(host, username);
     return;
@@ -2015,15 +2084,8 @@ async function connect(): Promise<void> {
     const privateKey = ui.privateKey.value.trim();
     const method = authMethod();
     const term = ui.termType.value;
-    const historyProfile = readProfileFromForm(password);
     // Resolve encryption during the SSH handshake so ready can usually save synchronously.
     void historyProfile.catch(() => undefined);
-    // Connections started from an existing host already have a persisted
-    // profile. Only ad-hoc connections should create or update history.
-    const existingProfile = profiles.find((item) => passwordContext(item) === currentTargetKey);
-    pendingHistory = existingProfile
-      ? null
-      : { generation, target: currentTargetKey, profile: historyProfile };
     const ticketRequest = issueTicket(abortController.signal);
     const { ticket, sessionId } = await ticketRequest;
     currentSessionId = sessionId;
@@ -2387,8 +2449,37 @@ ui.profileList.addEventListener('click', (clickEvent) => {
   }
   const card = target.closest<HTMLElement>('[data-profile-id]');
   const profile = profiles.find((item) => item.id === card?.dataset.profileId);
-  if (profile) void applyProfile(profile).catch((error) => toast(error instanceof Error ? error.message : '读取凭据失败。', 'error'));
+  if (profile) void applyProfile(profile).then(() => connect()).catch((error) => toast(error instanceof Error ? error.message : '读取凭据失败。', 'error'));
 });
+ui.temporaryList.addEventListener('click', (clickEvent) => {
+  const target = clickEvent.target as HTMLElement;
+  const deleteButton = target.closest<HTMLElement>('[data-delete-temporary]');
+  if (deleteButton?.dataset.deleteTemporary) {
+    clickEvent.preventDefault();
+    clickEvent.stopPropagation();
+    deleteTemporaryProfile(deleteButton.dataset.deleteTemporary);
+    return;
+  }
+  const button = target.closest<HTMLElement>('[data-temporary-key]');
+  const profile = temporaryProfiles.find((item) => historyKey(item.host, item.port, item.username) === button?.dataset.temporaryKey);
+  if (!profile) return;
+  clearCredentials();
+  ui.profileId.value = '';
+  ui.host.value = profile.host;
+  ui.port.value = String(profile.port);
+  ui.username.value = profile.username;
+  ui.initialCommand.value = profile.initialCommand;
+  ui.termType.value = profile.termType;
+  ui.encoding.value = profile.encoding;
+  ui.fingerprint.value = profile.fingerprint;
+  setAuthMethod(profile.authMethod);
+  setConnectionPanelTab('temporary');
+  requestAnimationFrame(() => ui.host.focus());
+});
+ui.savedTab.addEventListener('click', () => setConnectionPanelTab('saved'));
+ui.temporaryTab.addEventListener('click', () => setConnectionPanelTab('temporary'));
+ui.savedSearch.addEventListener('input', renderProfiles);
+ui.temporarySearch.addEventListener('input', renderTemporaryProfiles);
 ui.panelToggle.addEventListener('click', () => {
   const opening = !panelOpen;
   setPanelOpen(opening);
@@ -2544,7 +2635,10 @@ try { storedTheme = localStorage.getItem(THEME_STORAGE_KEY); } catch { /* Storag
 if (storedTheme === 'light' || storedTheme === 'dark') document.documentElement.dataset.theme = storedTheme;
 async function initialize(): Promise<void> {
   applyLanguage(currentLanguage);
+  temporaryProfiles = loadTemporaryProfiles();
   renderProfiles();
+  renderTemporaryProfiles();
+  setConnectionPanelTab('saved');
   setPanelOpen(panelOpen);
   setAuthMethod('password');
   setState('idle');
