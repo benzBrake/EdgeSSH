@@ -229,7 +229,7 @@ export class Dashboard {
     try {
       const { account, provider } = await api<{ account: { username: string }; provider: string }>('/api/auth/me');
       this.authenticated = true;
-      this.accountElement('#account-label').textContent = account.username;
+      this.accountElement('#account-label').textContent = `退出登录（${account.username}）`;
       this.get('#auth-provider-label').textContent = provider === 'demo' ? '演示' : provider === 'local-dev' ? '本地开发' : provider === 'github' ? 'GitHub' : 'Access';
       const action = this.accountElement<HTMLAnchorElement>('#account-action');
       action.setAttribute('aria-label', `退出登录（${account.username}）`);
@@ -358,7 +358,7 @@ export class Dashboard {
     this.actions.leaveWorkspace();
     this.actions.snippets.clear();
     this.authenticated = false;
-    this.accountElement('#account-label').textContent = '未登录';
+    this.accountElement('#account-label').textContent = '管理员登录';
     const action = this.accountElement<HTMLAnchorElement>('#account-action');
     action.href = '/auth/login'; action.setAttribute('aria-label', '管理员登录'); action.title = '管理员登录';
     this.setAccountIcon(false);

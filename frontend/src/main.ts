@@ -1,7 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { createElement, Maximize, Minimize } from 'lucide';
+import { createElement, Maximize, Menu, Minimize } from 'lucide';
 import { historyKey, historyLabel } from './history';
 import { listHosts, hostCredentials, saveHost, removeHost, updateHostSystem, type CloudHost, type Credentials, type HostSystemInfo } from './cloud-api';
 import { Dashboard } from './dashboard';
@@ -2437,9 +2437,40 @@ ui.processManagerTab.addEventListener('keydown', handleWorkspaceTabKey);
 ui.eventToggle.addEventListener('keydown', handleWorkspaceTabKey);
 const languageMenu = document.querySelector<HTMLElement>('#language-menu')!;
 const languageToggles = document.querySelectorAll<HTMLButtonElement>('#language-toggle, #session-language-toggle');
+const sessionMenuToggle = element<HTMLButtonElement>('session-menu-toggle');
+const sessionButtonGroup = element<HTMLElement>('session-button-group');
+sessionMenuToggle.append(createElement(Menu, { 'aria-hidden': 'true' }));
+
+function setSessionMenuOpen(open: boolean, restoreFocus = false): void {
+  if (open) sessionButtonGroup.setAttribute('data-open', 'true');
+  else sessionButtonGroup.removeAttribute('data-open');
+  sessionMenuToggle.setAttribute('aria-expanded', String(open));
+  sessionMenuToggle.setAttribute('aria-label', open
+    ? bilingual('关闭会话菜单', 'Close session menu')
+    : bilingual('打开会话菜单', 'Open session menu'));
+  if (restoreFocus) sessionMenuToggle.focus();
+}
+
+sessionMenuToggle.addEventListener('click', () => {
+  const open = !sessionButtonGroup.hasAttribute('data-open');
+  setSessionMenuOpen(open);
+  if (open) sessionButtonGroup.querySelector<HTMLElement>('button, a')?.focus();
+});
+sessionButtonGroup.addEventListener('click', (event) => {
+  const action = (event.target as Element).closest<HTMLElement>('button, a');
+  if (action && action.id !== 'session-language-toggle') setSessionMenuOpen(false);
+});
+document.addEventListener('pointerdown', (event) => {
+  const target = event.target as Node;
+  if (sessionMenuToggle.contains(target) || sessionButtonGroup.contains(target) || languageMenu.contains(target)) return;
+  setSessionMenuOpen(false);
+  languageMenu.hidden = true;
+  languageToggles.forEach((toggle) => toggle.setAttribute('aria-expanded', 'false'));
+});
+window.matchMedia('(max-width: 600px)').addEventListener('change', () => setSessionMenuOpen(false));
 languageToggles.forEach((toggle) => toggle.addEventListener('click', () => {
   languageMenu.hidden = !languageMenu.hidden;
-  toggle.setAttribute('aria-expanded', String(!languageMenu.hidden));
+  languageToggles.forEach((item) => item.setAttribute('aria-expanded', String(item === toggle && !languageMenu.hidden)));
 }));
 languageMenu.querySelectorAll<HTMLButtonElement>('[data-language-choice]').forEach((choice) => choice.addEventListener('click', () => {
   const selected = choice.dataset.languageChoice!;
@@ -2452,6 +2483,7 @@ languageMenu.querySelectorAll<HTMLButtonElement>('[data-language-choice]').forEa
   }
   languageMenu.hidden = true;
   languageToggles.forEach((toggle) => toggle.setAttribute('aria-expanded', 'false'));
+  setSessionMenuOpen(false);
   renderProfiles();
   setState(connectionState);
   setPanelOpen(panelOpen);
@@ -2492,6 +2524,16 @@ window.addEventListener('beforeunload', () => {
 });
 
 document.addEventListener('keydown', (keyEvent) => {
+  if (keyEvent.key === 'Escape' && !languageMenu.hidden) {
+    languageMenu.hidden = true;
+    languageToggles.forEach((toggle) => toggle.setAttribute('aria-expanded', 'false'));
+    if (sessionButtonGroup.hasAttribute('data-open')) element<HTMLButtonElement>('session-language-toggle').focus();
+    return;
+  }
+  if (keyEvent.key === 'Escape' && sessionButtonGroup.hasAttribute('data-open')) {
+    setSessionMenuOpen(false, true);
+    return;
+  }
   if (keyEvent.key === 'Escape' && panelOpen && !ui.hostKeyDialog.open) {
     closeConnectionPanel();
   }

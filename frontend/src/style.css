@@ -310,6 +310,14 @@ body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [d
   margin-left: auto;
 }
 
+.icon-button.session-menu-toggle {
+  display: none;
+}
+
+.session-menu-label {
+  display: none;
+}
+
 .home-account {
   display: flex;
   align-items: center;
@@ -365,6 +373,65 @@ body[data-session-frame='true'] .panel-scrim { inset: 0; }
   .session-home { padding-inline: 8px; }
   .session-home > span:last-child { display: none; }
   .session-tab { flex-basis: 125px; }
+  .icon-button.session-menu-toggle { display: grid; margin-left: auto; }
+  .session-button-group {
+    position: fixed;
+    z-index: 290;
+    top: calc(var(--session-tabs-height) + 6px);
+    right: max(8px, env(safe-area-inset-right));
+    display: none;
+    width: 190px;
+    margin: 0;
+    padding: 5px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+  }
+  .session-button-group[data-open='true'] { display: grid; }
+  .session-button-group { grid-template-columns: minmax(0, 1fr); }
+  .session-button-group > .icon-button,
+  .session-button-group .account-avatar {
+    display: flex;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    overflow: hidden;
+    padding-inline: 10px;
+  }
+  .session-button-group > .icon-button > svg,
+  .session-button-group .account-avatar > svg,
+  .session-button-group .language-icon {
+    width: 23px;
+    min-width: 23px;
+    flex: 0 0 23px;
+  }
+  .session-button-group .session-menu-label {
+    display: block;
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    font-size: 12px;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .session-button-group .home-account {
+    display: block;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .session-button-group .account-avatar { border-radius: 8px; }
+  .language-menu {
+    top: calc(var(--session-tabs-height) + 6px);
+    right: calc(max(8px, env(safe-area-inset-right)) + 198px);
+  }
 }
 
 button,

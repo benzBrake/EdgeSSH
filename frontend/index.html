@@ -24,6 +24,16 @@
       <div id="session-tab-list" class="session-tab-list" role="tablist" aria-label="已连接会话" data-i18n-aria-label-zh="已连接会话" data-i18n-aria-label-en="Connected sessions"></div>
       <button id="session-scroll-right" class="session-scroll" type="button" aria-label="向右滚动标签" data-i18n-aria-label-zh="向右滚动标签" data-i18n-aria-label-en="Scroll tabs right" hidden><span aria-hidden="true"></span></button>
       <button id="session-new" class="session-new" type="button" aria-label="新建 SSH 会话" data-i18n-aria-label-zh="新建 SSH 会话" data-i18n-aria-label-en="New SSH session" title="新建 SSH 会话" data-i18n-title-zh="新建 SSH 会话" data-i18n-title-en="New SSH session">＋</button>
+      <button
+        id="session-menu-toggle"
+        class="icon-button session-menu-toggle"
+        type="button"
+        aria-label="打开会话菜单"
+        data-i18n-aria-label-zh="打开会话菜单"
+        data-i18n-aria-label-en="Open session menu"
+        aria-controls="session-button-group"
+        aria-expanded="false"
+      ></button>
       <div id="session-button-group" class="session-button-group">
         <button
           id="theme-toggle"
@@ -34,9 +44,11 @@
           data-i18n-aria-label-en="Toggle color theme"
         >
           <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" /></svg>
+          <span class="session-menu-label" data-i18n-zh="切换颜色主题" data-i18n-en="Toggle color theme">切换颜色主题</span>
         </button>
         <button id="session-language-toggle" class="icon-button" type="button" aria-label="语言" title="语言" aria-haspopup="menu" aria-expanded="false" data-language="zh-CN">
           <span class="language-icon" aria-hidden="true"><span>中</span><span>E</span></span>
+          <span class="session-menu-label" data-i18n-zh="语言" data-i18n-en="Language">语言</span>
         </button>
         <a
           class="icon-button home-github"
@@ -49,12 +61,13 @@
           data-i18n-aria-label-en="Open source repository"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0 1 12 6.82c.85 0 1.71.11 2.51.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2Z" /></svg>
+          <span class="session-menu-label" data-i18n-zh="打开源代码仓库" data-i18n-en="Open source repository">打开源代码仓库</span>
         </a>
         <div class="home-account">
           <a id="account-action" class="icon-button account-avatar" href="/auth/login" title="管理员登录" aria-label="管理员登录">
             <svg id="account-login-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></svg>
             <svg id="account-logout-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
-            <span id="account-label" class="sr-only">未登录</span>
+            <span id="account-label" class="session-menu-label">管理员登录</span>
           </a>
         </div>
       </div>
