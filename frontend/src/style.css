@@ -786,11 +786,11 @@ button:disabled {
   z-index: 50;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: min(520px, calc(100dvh - var(--topbar-height) - 32px));
   max-height: min(780px, calc(100dvh - var(--topbar-height) - 32px));
   overflow-x: hidden;
   overflow-y: auto;
-  width: min(680px, calc(100vw - 32px));
+  width: min(860px, calc(100vw - 32px));
   padding: 26px 28px max(26px, env(safe-area-inset-bottom));
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -967,6 +967,20 @@ button:disabled {
   overflow-y: auto;
 }
 
+#profile-list {
+  max-height: 440px;
+}
+
+@media (min-width: 761px) {
+  #profile-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+#profile-list > .empty-list {
+  grid-column: 1 / -1;
+}
+
 .empty-list {
   margin: 0;
   padding: 14px;
@@ -1028,11 +1042,26 @@ button:disabled {
   font-weight: 700;
 }
 
+.profile-system {
+  overflow: hidden;
+}
+
+.profile-system svg {
+  width: 20px;
+  height: 20px;
+}
+
+.profile-system .host-os-tile svg {
+  fill: currentColor;
+  stroke: none;
+}
+
 .profile-copy {
   min-width: 0;
 }
 
 .profile-copy strong,
+.profile-address,
 .profile-copy time {
   display: block;
   overflow: hidden;
@@ -1046,6 +1075,7 @@ button:disabled {
 }
 
 .profile-copy time,
+.profile-address,
 .profile-meta {
   color: var(--muted);
   font-family: var(--mono);

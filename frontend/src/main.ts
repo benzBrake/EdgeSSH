@@ -1,10 +1,11 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { createElement, Maximize, Menu, Minimize } from 'lucide';
+import { createElement, Maximize, Menu, Minimize, Server } from 'lucide';
 import { historyKey, historyLabel } from './history';
 import { listHosts, hostCredentials, saveHost, removeHost, updateHostSystem, type CloudHost, type Credentials, type HostSystemInfo } from './cloud-api';
 import { Dashboard } from './dashboard';
+import { systemIcon } from './os-icons';
 import { FilePage } from './file-page';
 import { Snippets } from './snippets';
 import { resolveConnectionControl, resolveConnectionPanel } from './ui-state';
@@ -1261,7 +1262,12 @@ async function saveConnectedProfile(): Promise<void> {
 async function deleteProfile(id: string): Promise<void> {
   const removed = profiles.find((profile) => profile.id === id);
   if (!removed) return;
+  if (!confirm(bilingual(
+    `删除主机「${removed.name}」及保存的凭据？此操作不会删除服务器。`,
+    `Delete host "${removed.name}" and its saved credentials? This does not delete the server.`,
+  ))) return;
   const target = passwordContext(removed);
+  if (pendingHistory?.target === target) pendingHistory = null;
   try {
     await removeHost(id);
     profiles = await loadProfiles();
@@ -1320,20 +1326,30 @@ function renderProfiles(): void {
     main.type = 'button';
     main.dataset.profileId = profile.id;
     const avatar = document.createElement('span');
-    avatar.className = 'profile-avatar';
-    avatar.textContent = profile.username.slice(0, 2).toUpperCase();
+    avatar.className = 'profile-avatar profile-system';
+    avatar.innerHTML = systemIcon(profile.system, createElement(Server, { 'aria-hidden': 'true' }).outerHTML);
+    const systemLabel = profile.system
+      ? [profile.system.name, profile.system.version, profile.system.architecture].filter(Boolean).join(' · ')
+      : bilingual('连接主机后自动探测操作系统', 'Operating system detected after connecting');
+    avatar.title = systemLabel;
+    avatar.setAttribute('role', 'img');
+    avatar.setAttribute('aria-label', systemLabel);
     const copy = document.createElement('span');
     copy.className = 'profile-copy';
     const title = document.createElement('strong');
-    const label = targetLabel(profile.host, profile.port, profile.username);
+    const label = profile.name;
     title.textContent = label;
     main.setAttribute('aria-label', bilingual(`连接 ${label}`, `Connect to ${label}`));
+    const address = document.createElement('span');
+    address.className = 'profile-address';
+    address.textContent = targetLabel(profile.host, profile.port, profile.username);
+    address.title = address.textContent;
     const lastConnected = document.createElement('time');
     const connectedAt = new Date(Math.min(profile.updatedAt, Date.now()));
     lastConnected.dateTime = connectedAt.toISOString();
     const formattedTime = new Intl.DateTimeFormat(currentLanguage, { dateStyle: 'medium', timeStyle: 'short' }).format(connectedAt);
     lastConnected.textContent = bilingual(`最后连接：${formattedTime}`, `Last connected: ${formattedTime}`);
-    copy.append(title, lastConnected);
+    copy.append(title, address, lastConnected);
     main.append(avatar, copy);
 
     const remove = document.createElement('button');
@@ -2442,8 +2458,6 @@ ui.profileList.addEventListener('click', (clickEvent) => {
     clickEvent.preventDefault();
     clickEvent.stopPropagation();
     const id = deleteButton.dataset.deleteProfile;
-    const target = profiles.find((profile) => profile.id === id);
-    if (target && pendingHistory?.target === passwordContext(target)) pendingHistory = null;
     void deleteProfile(id);
     return;
   }

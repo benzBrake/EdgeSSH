@@ -19,6 +19,61 @@ async function dashboardFixture(page: Page) {
   await page.goto('/');
 }
 
+test('已保存主机删除需要确认，弹窗在大屏双列、小屏单列显示', async ({ page }) => {
+  await dashboardFixture(page);
+  let hosts = [host, { ...host, id: 'beta', name: 'Backup server', host: '192.0.2.11' }];
+  const deleted: string[] = [];
+  await page.route('**/api/hosts**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() === 'DELETE') {
+      deleted.push(path);
+      hosts = hosts.filter((entry) => path !== `/api/hosts/${entry.id}`);
+      return route.fulfill({ json: { ok: true } });
+    }
+    if (path === '/api/hosts') return route.fulfill({ json: { hosts } });
+    return route.fulfill({ json: {} });
+  });
+  await page.locator('#session-new').click();
+  const session = page.frameLocator('.session-frame-host iframe');
+  const panel = session.locator('#connection-panel');
+  const cards = session.locator('#profile-list .profile-card');
+  await expect(panel).toBeVisible();
+  await expect(cards).toHaveCount(2);
+  await expect(cards.first().locator('strong')).toHaveText(host.name);
+  await expect(cards.first().locator('.profile-address')).toHaveText('deploy@192.0.2.10:2222');
+  await expect(cards.first().locator('.profile-system svg')).toBeVisible();
+  await panel.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+  const firstBounds = (await cards.nth(0).boundingBox())!;
+  const secondBounds = (await cards.nth(1).boundingBox())!;
+  if (page.viewportSize()!.width > 760) {
+    expect(secondBounds.y).toBe(firstBounds.y);
+    expect(secondBounds.x).toBeGreaterThan(firstBounds.x);
+  } else {
+    expect(secondBounds.x).toBe(firstBounds.x);
+    expect(secondBounds.y).toBeGreaterThan(firstBounds.y);
+  }
+  const panelBounds = (await panel.boundingBox())!;
+  expect(panelBounds.height).toBeGreaterThanOrEqual(520);
+  expect(panelBounds.x).toBeGreaterThanOrEqual(0);
+  expect(panelBounds.x + panelBounds.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+
+  const remove = session.getByRole('button', { name: `删除 ${host.name}`, exact: true });
+  page.once('dialog', async (dialog) => {
+    expect(dialog.type()).toBe('confirm');
+    expect(dialog.message()).toContain(host.name);
+    expect(dialog.message()).toContain('保存的凭据');
+    await dialog.dismiss();
+  });
+  await remove.click();
+  await expect(cards).toHaveCount(2);
+  expect(deleted).toEqual([]);
+  page.once('dialog', (dialog) => dialog.accept());
+  await remove.click();
+  await expect(cards).toHaveCount(1);
+  expect(deleted).toEqual(['/api/hosts/alpha']);
+  await expect(cards.first().locator('strong')).toHaveText('Backup server');
+});
+
 test('首页切换暗色模式时只更新会话栏主题', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('workers-webssh.theme', 'light'));
   await dashboardFixture(page);
