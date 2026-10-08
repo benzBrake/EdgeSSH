@@ -44,6 +44,8 @@ export class Dashboard {
   private isHome = true;
   private paused = false;
   private authenticated = false;
+  private accountUsername = '';
+  private language: 'zh-CN' | 'en' = 'zh-CN';
   private returnFocus?: HTMLElement;
   private readonly dialog: HTMLDialogElement;
   private readonly keyPreviewDialog: HTMLDialogElement;
@@ -57,16 +59,10 @@ export class Dashboard {
   constructor(private readonly actions: DashboardActions) {
     this.root.id = 'dashboard';
     this.root.innerHTML = `
-      <header class="home-header">
-        <a class="home-brand" href="/" aria-label="EdgeSSH 首页"><span class="brand-chevron">›_</span>Edge<span>SSH</span></a>
-        <label class="home-search">${icon('search')}<input id="host-search" type="search" placeholder="搜索主机、分组或 IP 地址" aria-label="搜索主机"><kbd>Ctrl K</kbd></label>
-        <button class="home-button primary header-add" data-add>＋ 新建主机</button>
-        <div class="home-account"><a class="home-github" href="https://github.com/cmliu/CF-Workers-WebSSH" target="_blank" rel="noopener noreferrer" aria-label="打开源代码仓库" title="源代码仓库" data-i18n-aria-label-zh="打开源代码仓库" data-i18n-aria-label-en="Open source repository"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0 1 12 6.82c.85 0 1.71.11 2.51.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2Z" /></svg></a><span class="account-avatar">A</span><span id="account-label">验证身份中</span><a id="account-action" href="/auth/login" title="管理员登录">登录</a></div>
-      </header>
+      <header class="home-header" aria-hidden="true"></header>
       <div class="home-layout">
         <nav class="home-rail" aria-label="主导航">
           <button class="rail-item selected" id="rail-overview" aria-current="page">${icon('home')}<span>总览</span></button>
-          <button class="rail-item" id="rail-hosts">${icon('server')}<span>主机</span></button>
           <button class="rail-item" id="rail-files">${icon('folder')}<span>文件管理</span></button>
           <button class="rail-item" id="rail-snippets">${icon('snippets')}<span>代码片段</span></button>
           <button class="rail-item" id="rail-forward">${icon('forward')}<span>端口转发</span></button>
@@ -78,6 +74,7 @@ export class Dashboard {
           <div class="home-main-grid">
             <section class="hosts-pane" aria-labelledby="hosts-heading">
               <div class="home-section-heading"><div><p class="home-eyebrow">YOUR INFRASTRUCTURE</p><h1 id="hosts-heading">我的主机</h1><p>安全保存，随处连接。</p></div><button class="home-button" data-add>＋ 添加主机</button></div>
+              <label class="home-search">${icon('search')}<input id="host-search" type="search" placeholder="搜索主机、分组或 IP 地址" aria-label="搜索主机"><kbd>Ctrl K</kbd></label>
               <div class="host-filters" id="host-filters" aria-label="按分组筛选"></div>
               <div id="host-list" class="host-list" aria-live="polite"><p class="home-empty">正在从云端加载主机…</p></div>
               <div class="host-list-footer"><span id="host-total">0 台主机</span><button class="home-text-button" id="refresh-hosts">刷新列表 ↻</button></div>
@@ -151,7 +148,7 @@ export class Dashboard {
     });
     this.keyPreviewDialog.addEventListener('cancel', (event) => { if (this.previewBusy) event.preventDefault(); });
     this.form = this.get<HTMLFormElement>('#cloud-host-form');
-    this.get('#account-action').addEventListener('click', async (event) => {
+    this.accountElement<HTMLAnchorElement>('#account-action').addEventListener('click', async (event) => {
       if (!this.authenticated) return;
       event.preventDefault();
       if (isDemoMode()) {
@@ -176,11 +173,10 @@ export class Dashboard {
     this.get('#use-download-public-key').addEventListener('click', () => void this.useGeneratedKey('download'));
     this.get('#host-search').addEventListener('input', () => this.renderList());
     this.get('#refresh-hosts').addEventListener('click', () => void this.refresh());
-    for (const id of ['#rail-overview', '#rail-hosts']) this.get(id).addEventListener('click', () => {
+    this.get('#rail-overview').addEventListener('click', () => {
       if (!this.actions.files.confirmLeave()) return;
       if (!this.isHome) this.actions.leaveWorkspace();
       this.show();
-      if (id === '#rail-hosts') this.get<HTMLInputElement>('#host-search').focus();
     });
     this.get('#rail-files').addEventListener('click', () => this.showFiles());
     this.get('#rail-snippets').addEventListener('click', () => this.showSnippets());
@@ -226,6 +222,7 @@ export class Dashboard {
   }
 
   private get<T extends HTMLElement = HTMLElement>(selector: string): T { return this.root.querySelector<T>(selector)!; }
+  private accountElement<T extends HTMLElement = HTMLElement>(selector: string): T { return document.querySelector<T>(selector)!; }
   private field(name: string): HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
     return this.form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
   }
@@ -234,11 +231,9 @@ export class Dashboard {
     try {
       const { account, provider } = await api<{ account: { username: string }; provider: string }>('/api/auth/me');
       this.authenticated = true;
-      this.get('#account-label').textContent = account.username;
-      this.get('.account-avatar').textContent = account.username.slice(0, 1).toUpperCase();
+      this.accountUsername = account.username;
       this.get('#auth-provider-label').textContent = provider === 'demo' ? '演示' : provider === 'local-dev' ? '本地开发' : provider === 'github' ? 'GitHub' : 'Access';
-      const action = this.get<HTMLAnchorElement>('#account-action');
-      action.textContent = '退出'; action.title = '退出登录'; action.href = '/api/auth/logout';
+      this.renderAccount();
       await this.refresh();
     } catch (error) {
       this.signedOut();
@@ -353,13 +348,29 @@ export class Dashboard {
     const notice = this.get('#home-notice'); notice.textContent = message; notice.hidden = false;
   }
 
+  private setAccountIcon(authenticated: boolean): void {
+    this.accountElement('#account-login-icon').toggleAttribute('hidden', authenticated);
+    this.accountElement('#account-logout-icon').toggleAttribute('hidden', !authenticated);
+  }
+
+  private renderAccount(): void {
+    const label = this.authenticated
+      ? this.language === 'en' ? `Sign out (${this.accountUsername})` : `退出登录（${this.accountUsername}）`
+      : this.language === 'en' ? 'Administrator sign-in' : '管理员登录';
+    this.accountElement('#account-label').textContent = label;
+    const action = this.accountElement<HTMLAnchorElement>('#account-action');
+    action.href = this.authenticated ? '/api/auth/logout' : '/auth/login';
+    action.setAttribute('aria-label', label);
+    action.title = label;
+    this.setAccountIcon(this.authenticated);
+  }
+
   private signedOut(): void {
     this.actions.leaveWorkspace();
     this.actions.snippets.clear();
     this.authenticated = false;
-    this.get('#account-label').textContent = '未登录';
-    const action = this.get<HTMLAnchorElement>('#account-action');
-    action.href = '/auth/login'; action.textContent = '登录'; action.title = '管理员登录';
+    this.accountUsername = '';
+    this.renderAccount();
     this.setHosts([]);
     this.get('#host-list').textContent = '请点击右上角「登录」验证管理员身份。';
     this.root.querySelectorAll<HTMLButtonElement>('[data-add], #quick-connect, #bottom-quick, #rail-snippets').forEach((button) => { button.disabled = true; });
@@ -507,6 +518,7 @@ export class Dashboard {
   }
 
   setLanguage(language: 'zh-CN' | 'en'): void {
+    this.language = language;
     const english: Record<string, string> = {
       '总览': 'Overview', '主机': 'Hosts', '文件管理': 'Files', '代码片段': 'Snippets', '端口转发': 'Port forwarding', '快速连接': 'Quick connect',
       '我的主机': 'My hosts', '安全保存，随处连接。': 'Save securely, connect anywhere.', '添加主机': 'Add host', '新建主机': 'New host', '＋ 新建主机': '+ New host', '＋ 添加主机': '+ Add host',
@@ -552,6 +564,7 @@ export class Dashboard {
         if (value && copy[value]) element.setAttribute(attribute, copy[value]);
       }
     });
+    this.renderAccount();
   }
 
   private async openKeyPreview(): Promise<void> {

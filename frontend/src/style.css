@@ -101,7 +101,35 @@ body {
   padding: 5px max(12px, env(safe-area-inset-right)) 5px max(12px, env(safe-area-inset-left));
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--panel) 96%, transparent);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+/* Home pages own their scrolling area so the viewport scrollbar starts below
+ * the fixed session bar instead of running underneath it. */
+body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) {
+  overflow: hidden;
+}
+
+body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) #dashboard {
+  height: calc(100dvh - var(--session-tabs-height));
+  min-height: 0;
+  margin-top: var(--session-tabs-height);
+  overflow-y: auto;
+  padding-top: 0;
+}
+
+body[data-view='workspace']:not([data-session-frame='true']) #app {
+  height: calc(100% - var(--session-tabs-height));
+  margin-top: var(--session-tabs-height);
+}
+
+/* Light home views align the session bar with the dashboard's white/orange surface tokens. */
+html[data-theme='light'] body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) .session-tabs {
+  --panel: var(--home-surface, #ffffff);
+  --border: var(--home-line, #e9ecf1);
+  --surface-2: var(--home-bg, #fafbfd);
+  --muted: var(--home-muted, #667085);
+  --text: var(--home-ink, #111827);
+  background: var(--panel);
 }
 
 .session-home,
@@ -125,6 +153,23 @@ body {
   font-size: 12px;
 }
 
+.session-brand {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-right: 6px;
+  color: var(--text);
+  font-family: var(--home-display, var(--sans));
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.session-brand .brand-wordmark > span { color: var(--home-accent, var(--accent)); }
+.session-brand .brand-chevron { flex: 0 0 auto; margin-right: 8px; color: var(--home-accent, var(--accent)); font-family: var(--mono); font-size: 22px; }
+.session-brand:hover { color: var(--text); text-decoration: none; }
+
 .session-home:hover,
 .session-scroll:hover:not(:disabled),
 .session-new:hover,
@@ -134,9 +179,16 @@ body {
 }
 
 .session-home[aria-current='page'] {
-  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
-  background: var(--accent-dim);
-  color: var(--text);
+  /* The home tab keeps the dashboard's orange identity in both themes. */
+  border-color: color-mix(in srgb, var(--home-accent, #f4511e) 52%, var(--border));
+  background: var(--home-accent-soft, #fff0e9);
+  color: var(--home-accent-hover, #d53b0a);
+}
+
+html[data-theme='dark'] .session-home[aria-current='page'] {
+  border-color: color-mix(in srgb, var(--home-accent, #f4511e) 58%, var(--border));
+  background: color-mix(in srgb, var(--home-accent, #f4511e) 16%, transparent);
+  color: var(--home-accent, #f4511e);
 }
 
 .session-tab-list {
@@ -269,6 +321,32 @@ body {
   margin-left: auto;
 }
 
+.icon-button.session-menu-toggle {
+  display: none;
+}
+
+.session-menu-label {
+  display: none;
+}
+
+.home-account {
+  display: flex;
+  align-items: center;
+  margin-left: 5px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+
+.home-account .account-avatar {
+  border-radius: 50%;
+}
+
+.home-account .account-avatar svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 1.7;
+}
+
 .session-frame-host {
   position: fixed;
   z-index: 110;
@@ -278,12 +356,6 @@ body {
   left: 0;
   overflow: hidden;
   background: var(--bg);
-}
-
-/* The dashboard is a normal-flow page. Reserve the fixed session bar's
-   height while it is visible so the home header stays fully reachable. */
-body.has-session-tabs[data-view='dashboard'] #dashboard {
-  padding-top: var(--session-tabs-height);
 }
 
 .session-frame-host iframe {
@@ -308,9 +380,69 @@ body[data-session-frame='true'] .panel-scrim { inset: 0; }
   :root { --session-tabs-height: 42px; }
   .session-tabs { padding-block: 4px; }
   .session-frame-host { top: var(--session-tabs-height); }
+  .session-brand .brand-wordmark { display: none; }
   .session-home { padding-inline: 8px; }
   .session-home > span:last-child { display: none; }
-  .session-tab { flex-basis: 175px; }
+  .session-tab { flex-basis: 125px; }
+  .icon-button.session-menu-toggle { display: grid; margin-left: auto; }
+  .session-button-group {
+    position: fixed;
+    z-index: 290;
+    top: calc(var(--session-tabs-height) + 6px);
+    right: max(8px, env(safe-area-inset-right));
+    display: none;
+    width: 190px;
+    margin: 0;
+    padding: 5px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+  }
+  .session-button-group[data-open='true'] { display: grid; }
+  .session-button-group { grid-template-columns: minmax(0, 1fr); }
+  .session-button-group > .icon-button,
+  .session-button-group .account-avatar {
+    display: flex;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    overflow: hidden;
+    padding-inline: 10px;
+  }
+  .session-button-group > .icon-button > svg,
+  .session-button-group .account-avatar > svg,
+  .session-button-group .language-icon {
+    width: 23px;
+    min-width: 23px;
+    flex: 0 0 23px;
+  }
+  .session-button-group .session-menu-label {
+    display: block;
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    font-size: 12px;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .session-button-group .home-account {
+    display: block;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .session-button-group .account-avatar { border-radius: 8px; }
+  .language-menu {
+    top: calc(var(--session-tabs-height) + 6px);
+    right: calc(max(8px, env(safe-area-inset-right)) + 198px);
+  }
 }
 
 button,

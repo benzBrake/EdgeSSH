@@ -76,7 +76,7 @@ test('连接、目录导航与共享终端会话不重复附着', async ({ page 
   await expect(page.locator('.files-list')).toContainText('README.md');
   await expect(page.locator('#files-host')).toBeDisabled();
   await expect(page.locator('#files-connection-state')).toHaveText('SSH 已连接');
-  await expect(page.locator('.header-add')).toBeHidden();
+  await expect(page.locator('.header-add')).toHaveCount(0);
   await page.locator('.files-footer').scrollIntoViewIfNeeded();
   await expect(page.locator('.files-footer')).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

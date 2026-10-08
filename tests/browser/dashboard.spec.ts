@@ -11,13 +11,126 @@ async function dashboardFixture(page: Page) {
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/auth/me') {
-      return route.fulfill({ json: { account: { username: 'Administrator' }, provider: 'cloudflare' } });
+      return route.fulfill({ json: { account: { username: 'local-development' }, provider: 'local-dev' } });
     }
     if (path === '/api/hosts') return route.fulfill({ json: { hosts: [host] } });
     return route.fulfill({ json: {} });
   });
   await page.goto('/');
 }
+
+test('首页切换暗色模式时只更新会话栏主题', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('workers-webssh.theme', 'light'));
+  await dashboardFixture(page);
+
+  const sessionBar = page.locator('#session-tabs');
+  const homeTab = page.locator('#session-home');
+  const dashboard = page.locator('#dashboard');
+  const lightBarBackground = await sessionBar.evaluate((element) => getComputedStyle(element).backgroundColor);
+  const lightHomeTabColor = await homeTab.evaluate((element) => getComputedStyle(element).color);
+  const lightDashboardBackground = await dashboard.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+  if (page.viewportSize()!.width <= 600) await page.locator('#session-menu-toggle').click();
+  await page.locator('#theme-toggle').click();
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect.poll(() => sessionBar.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(lightBarBackground);
+  await expect.poll(() => homeTab.evaluate((element) => getComputedStyle(element).color)).toBe('rgb(244, 81, 30)');
+  expect(await homeTab.evaluate((element) => getComputedStyle(element).color)).not.toBe(lightHomeTabColor);
+  await expect.poll(() => dashboard.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(lightDashboardBackground);
+});
+
+test('账户入口跟随当前语言显示', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('workers-webssh.language', 'en'));
+  await dashboardFixture(page);
+
+  const account = page.locator('#account-action');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('#account-label')).toHaveText('Sign out (local-development)');
+  await expect(account).toHaveAttribute('aria-label', 'Sign out (local-development)');
+  await expect(account).toHaveAttribute('title', 'Sign out (local-development)');
+});
+
+test('会话栏在无会话和关闭最后一个会话后常驻显示', async ({ page }) => {
+  await dashboardFixture(page);
+  const bar = page.locator('#session-tabs');
+  const home = page.locator('#session-home');
+  const expectEmptyHome = async () => {
+    await expect(bar).toBeVisible();
+    await expect(home).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('.session-tab')).toHaveCount(0);
+    await expect(page.locator('#session-new')).toBeVisible();
+    if (page.viewportSize()!.width <= 600) {
+      await expect(page.locator('#session-menu-toggle')).toBeVisible();
+      await expect(page.locator('#theme-toggle')).toBeHidden();
+      await expect(page.locator('#session-language-toggle')).toBeHidden();
+    } else {
+      await expect(page.locator('#session-menu-toggle')).toBeHidden();
+      await expect(page.locator('#theme-toggle')).toBeVisible();
+      await expect(page.locator('#session-language-toggle')).toBeVisible();
+    }
+    await expect(page.locator('#session-scroll-left')).toBeHidden();
+    await expect(page.locator('#session-scroll-right')).toBeHidden();
+    const barBounds = await bar.boundingBox();
+    const headerBounds = await page.locator('#dashboard .home-header').boundingBox();
+    expect(headerBounds!.y).toBeGreaterThanOrEqual(barBounds!.y + barBounds!.height);
+  };
+  await expectEmptyHome();
+  await expect(page.locator('#account-login-icon')).toBeHidden();
+  if (page.viewportSize()!.width <= 600) await expect(page.locator('#account-logout-icon')).toBeHidden();
+  else await expect(page.locator('#account-logout-icon')).toBeVisible();
+
+  await page.locator('#session-new').click();
+  await expect(page.locator('.session-tab')).toHaveCount(1);
+  await expect(home).not.toHaveAttribute('aria-current', 'page');
+  const session = page.frameLocator('.session-frame-host iframe');
+  await expect(session.locator('#connection-panel')).toBeVisible();
+  await expect(session.locator('#session-tabs')).toBeHidden();
+
+  await page.locator('.session-tab-close').click();
+  await expect(page.locator('#session-frame-host')).toBeHidden();
+  await expectEmptyHome();
+});
+
+test('窄屏会话操作收进三道杠菜单', async ({ page }) => {
+  await page.setViewportSize({ width: 600, height: 812 });
+  await dashboardFixture(page);
+
+  const toggle = page.locator('#session-menu-toggle');
+  const menu = page.locator('#session-button-group');
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(menu).toBeHidden();
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(menu).toBeVisible();
+  const menuBounds = await menu.boundingBox();
+  for (const action of await menu.locator('button, a').all()) {
+    await action.hover();
+    const actionBounds = await action.boundingBox();
+    expect(actionBounds!.x).toBeGreaterThanOrEqual(menuBounds!.x);
+    expect(actionBounds!.x + actionBounds!.width).toBeLessThanOrEqual(menuBounds!.x + menuBounds!.width);
+    expect(await action.evaluate((element) => element.scrollWidth)).toBeLessThanOrEqual(await action.evaluate((element) => element.clientWidth));
+  }
+  const labelOffsets = await menu.locator('.session-menu-label').evaluateAll((labels) => labels.map((label) => label.getBoundingClientRect().left));
+  expect(new Set(labelOffsets.map((offset) => Math.round(offset))).size).toBe(1);
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(toggle).toBeFocused();
+
+  await toggle.click();
+  await page.locator('#session-language-toggle').click();
+  await expect(page.locator('#language-menu')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#language-menu')).toBeHidden();
+  await expect(menu).toBeVisible();
+
+  await page.setViewportSize({ width: 601, height: 812 });
+  await expect(toggle).toBeHidden();
+  await expect(menu).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+});
 
 test('生成预览、保护密码和使用下载始终对应同一公钥', async ({ page }) => {
   await dashboardFixture(page);
@@ -267,5 +380,6 @@ test('会话标签溢出使用箭头，滚轮切换并显示选中标签', async
   await page.setViewportSize({ width: 2400, height: 1000 });
   await expect(page.locator('#session-scroll-left')).toBeHidden();
   await expect(page.locator('#session-scroll-right')).toBeHidden();
-  expect(await page.locator('#session-button-group').evaluate((el) => el.getBoundingClientRect().width)).toBe(0);
+  await expect(page.locator('#session-button-group')).toBeVisible();
+  await expect(page.locator('#session-menu-toggle')).toBeHidden();
 });
