@@ -11,7 +11,7 @@ async function dashboardFixture(page: Page) {
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/auth/me') {
-      return route.fulfill({ json: { account: { username: 'Administrator' }, provider: 'cloudflare' } });
+      return route.fulfill({ json: { account: { username: 'local-development' }, provider: 'local-dev' } });
     }
     if (path === '/api/hosts') return route.fulfill({ json: { hosts: [host] } });
     return route.fulfill({ json: {} });
@@ -37,6 +37,8 @@ test('会话栏在无会话和关闭最后一个会话后常驻显示', async ({
     expect(headerBounds!.y).toBeGreaterThanOrEqual(barBounds!.y + barBounds!.height);
   };
   await expectEmptyHome();
+  await expect(page.locator('#account-login-icon')).toBeHidden();
+  await expect(page.locator('#account-logout-icon')).toBeVisible();
 
   await page.locator('#session-new').click();
   await expect(page.locator('.session-tab')).toHaveCount(1);

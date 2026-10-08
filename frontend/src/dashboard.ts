@@ -234,6 +234,7 @@ export class Dashboard {
       const action = this.accountElement<HTMLAnchorElement>('#account-action');
       action.setAttribute('aria-label', `退出登录（${account.username}）`);
       action.title = `退出登录（${account.username}）`; action.href = '/api/auth/logout';
+      this.setAccountIcon(true);
       await this.refresh();
     } catch (error) {
       this.signedOut();
@@ -348,6 +349,11 @@ export class Dashboard {
     const notice = this.get('#home-notice'); notice.textContent = message; notice.hidden = false;
   }
 
+  private setAccountIcon(authenticated: boolean): void {
+    this.accountElement('#account-login-icon').toggleAttribute('hidden', authenticated);
+    this.accountElement('#account-logout-icon').toggleAttribute('hidden', !authenticated);
+  }
+
   private signedOut(): void {
     this.actions.leaveWorkspace();
     this.actions.snippets.clear();
@@ -355,6 +361,7 @@ export class Dashboard {
     this.accountElement('#account-label').textContent = '未登录';
     const action = this.accountElement<HTMLAnchorElement>('#account-action');
     action.href = '/auth/login'; action.setAttribute('aria-label', '管理员登录'); action.title = '管理员登录';
+    this.setAccountIcon(false);
     this.setHosts([]);
     this.get('#host-list').textContent = '请点击右上角「登录」验证管理员身份。';
     this.root.querySelectorAll<HTMLButtonElement>('[data-add], #quick-connect, #bottom-quick, #rail-snippets').forEach((button) => { button.disabled = true; });
