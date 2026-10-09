@@ -4,6 +4,7 @@ import { assertPublicTarget, toSocketHostname } from './security';
 import { createTicket, verifyTicket } from './security';
 import { SSHSession } from './session';
 import { ForwardingState } from '../forwarding/state';
+import { forwardingErrorMessage } from '../forwarding/errors.ts';
 import { FORWARD_RETENTION_MS, previewError } from '../forwarding/security';
 
 interface MainAttachment { role: 'main'; phase: 'waiting' | 'connecting' | 'connected' }
@@ -110,7 +111,7 @@ export class SSHSessionDO implements DurableObject {
         return await this.forwarding.create(session, port, origin, this.state.id.toString(), mode,
           this.forwardingRetentionDeadline(session));
       }
-      catch { return previewError('远端端口不可达或 SSH 服务未允许 TCP 转发。', 502); }
+      catch (error) { return previewError(forwardingErrorMessage(error, port), 502); }
     }
     if (url.pathname === '/sftp') return this.attachSFTP(request);
     if (url.pathname === '/processes') return this.attachProcesses(request);

@@ -1,4 +1,5 @@
 import { SSHChannel, type ChannelDataChunk } from '../ssh/channel';
+import { ForwardingError, forwardingOpenError } from './errors.ts';
 import {
   SSH_MSG_CHANNEL_OPEN_CONFIRMATION, SSH_MSG_CHANNEL_OPEN_FAILURE, SSH_MSG_CHANNEL_DATA,
   SSH_MSG_CHANNEL_WINDOW_ADJUST, SSH_MSG_CHANNEL_EOF, SSH_MSG_CHANNEL_CLOSE,
@@ -31,13 +32,13 @@ export class ForwardChannel {
       pull: () => this.adjustWindow(),
       cancel: () => this.close(),
     }, { highWaterMark: 2 * 1024 * 1024, size: (chunk) => chunk.byteLength });
-    this.timer = setTimeout(() => this.abort(new Error('Forwarding channel timed out')), 15_000);
+    this.timer = setTimeout(() => this.abort(new ForwardingError('等待 SSH 服务端打开转发通道超时。')), 15_000);
     void this.opened.catch(() => undefined);
   }
 
   private touch(): void {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.abort(new Error('Forwarding channel timed out')), 60_000);
+    this.timer = setTimeout(() => this.abort(new ForwardingError('远端转发通道等待数据超时。')), 60_000);
   }
 
   async handle(type: number, payload: Uint8Array): Promise<void> {
@@ -47,8 +48,8 @@ export class ForwardChannel {
       if (this.failure) { await this.sendClose(); return; }
       this.touch(); this.resolveOpen();
     } else if (type === SSH_MSG_CHANNEL_OPEN_FAILURE) {
-      channel.handleOpenFailure(payload);
-      this.abort(new Error('SSH server rejected port forwarding'));
+      const { reasonCode, description } = channel.handleOpenFailure(payload);
+      this.abort(forwardingOpenError(reasonCode, description));
       this.transport.remove();
     } else if (type === SSH_MSG_CHANNEL_DATA) {
       const data = channel.handleChannelData(payload);

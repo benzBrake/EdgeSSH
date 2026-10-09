@@ -112,19 +112,22 @@ export class SSHChannel {
     this.openConfirmed = true;
   }
 
-  handleOpenFailure(payload: Uint8Array): void {
+  handleOpenFailure(payload: Uint8Array): { reasonCode: number; description: string } {
     if (payload.length < 17 || readUint32(payload, 1) !== this.localChannelID) {
       throw new Error('Malformed channel open failure');
     }
     let offset = 9;
+    let description = '';
     for (let index = 0; index < 2; index++) {
       if (offset + 4 > payload.length) throw new Error('Malformed channel open failure');
       const length = readUint32(payload, offset);
       offset += 4;
       if (length > payload.length - offset) throw new Error('Malformed channel open failure');
+      if (index === 0) description = new TextDecoder().decode(payload.subarray(offset, offset + length));
       offset += length;
     }
     if (offset !== payload.length) throw new Error('Malformed channel open failure');
+    return { reasonCode: readUint32(payload, 5), description };
   }
 
   buildPTYRequest(cols: number, rows: number, terminal = 'xterm-256color'): Uint8Array {

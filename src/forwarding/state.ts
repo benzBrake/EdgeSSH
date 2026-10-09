@@ -3,6 +3,7 @@ import { FORWARD_TTL_MS, LAUNCH_TTL_MS, PREVIEW_PREFIX, previewError } from './s
 import { proxyHTTP } from './http.ts';
 import { trustedBase, RUNTIME_PATH } from './mount.ts';
 import { pathRuntime } from './runtime.ts';
+import { forwardingErrorMessage } from './errors.ts';
 
 interface Grant {
   session: SSHSession;
@@ -125,6 +126,6 @@ export class ForwardingState {
       const channel = await grant.session.openForward(grant.port);
       if (this.grant !== grant) { await channel.close(); return previewError('转发已停止。', 410); }
       return await proxyHTTP(channel, request, grant.port, grant.origin, grant.base);
-    } catch { return previewError('无法访问远端 HTTP 服务，请检查端口、服务状态和 SSH 转发权限。', 502); }
+    } catch (error) { return previewError(forwardingErrorMessage(error, grant.port), 502); }
   }
 }

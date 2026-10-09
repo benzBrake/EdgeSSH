@@ -85,6 +85,19 @@ async function chooseForwardMode(page: Page, mode: 'trusted' | 'isolated') {
   await page.locator(`.forward-switch [data-mode="${mode}"]`).click();
 }
 
+test('转发探测失败显示具体原因并清理 SSH 会话', async ({ page }) => {
+  const { calls, closed } = await forwardingFixture(page);
+  const error = '转发到远端 127.0.0.1:8080 失败：远端服务拒绝连接。（SSH 原因码 2）';
+  await page.route('**/api/forwarding?*', (route) => route.request().method() === 'POST'
+    ? route.fulfill({ status: 502, json: { error } }) : route.fallback());
+  await startForward(page);
+  await expect(page.locator('.forward-page [data-status]')).toHaveText(error);
+  await expect.poll(() => calls.filter((call) => call.type === 'delete').length).toBe(1);
+  await expect.poll(() => closed[0]).toBe(true);
+  await expect(page.locator('.forward-page [data-stop]')).toBeDisabled();
+  await expect(page.locator('.forward-page [data-preview-link]')).toBeHidden();
+});
+
 test('默认标准模式显示风险警告，隔离模式未配置时仍禁用连接', async ({ page }, testInfo) => {
   await forwardingFixture(page, false);
   await expect(page.locator('.forward-switch [data-mode="trusted"]')).toHaveAttribute('aria-pressed', 'true');
