@@ -260,7 +260,6 @@ const ui = {
   savedPanel: element<HTMLElement>('saved-panel'),
   temporaryPanel: element<HTMLElement>('temporary-panel'),
   savedSearch: element<HTMLInputElement>('saved-search'),
-  savedConnectionStatus: element<HTMLElement>('saved-connection-status'),
   temporarySearch: element<HTMLInputElement>('temporary-search'),
   temporaryList: element<HTMLElement>('temporary-list'),
   temporaryCount: element<HTMLElement>('temporary-count'),
@@ -1214,20 +1213,30 @@ async function applyProfile(profile: SavedProfile): Promise<void> {
 
 async function connectSavedProfile(profile: SavedProfile): Promise<void> {
   if (historyPasswordLoading || connectionState === 'connecting' || connectionState === 'connected' || connectionState === 'disconnecting') return;
-  ui.savedConnectionStatus.textContent = bilingual('正在读取主机凭据…', 'Loading host credentials…');
-  ui.savedConnectionStatus.hidden = false;
-  postSessionEvent('label', { label: profile.name || targetLabel(profile.host, profile.port, profile.username) });
+  currentTargetLabel = profile.name || targetLabel(profile.host, profile.port, profile.username);
+  ui.sessionTitle.textContent = currentTargetLabel;
+  postSessionEvent('label', { label: currentTargetLabel });
+  ui.formError.hidden = true;
+  currentFormError = null;
+  ui.terminalEmpty.hidden = true;
+  resetTerminalForConnection(terminal);
+  updateConnectionStatus(localized('正在读取主机凭据…', 'Loading host credentials…'));
+  setPanelOpen(false);
   try {
     const loading = applyProfile(profile);
     const generation = historyPasswordLoadGeneration;
     await loading;
     if (generation !== historyPasswordLoadGeneration) return;
-    ui.savedConnectionStatus.textContent = bilingual('正在连接…', 'Connecting…');
     await connect();
-    if (currentFormError) ui.savedConnectionStatus.textContent = ui.formError.textContent;
+    if (currentFormError) {
+      updateConnectionStatus(currentFormError);
+      if (connectionState === 'idle') toast(localize(currentFormError), 'error');
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : bilingual('读取主机凭据失败。', 'Could not read host credentials.');
-    ui.savedConnectionStatus.textContent = message;
+    showFormError(message);
+    updateConnectionStatus(messageTranslation(message));
+    setState('error');
     toast(message, 'error');
   }
 }

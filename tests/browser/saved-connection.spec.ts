@@ -41,15 +41,22 @@ for (const fail of [false, true]) {
     const session = page.frameLocator('#session-frame-host iframe');
     const connect = session.getByRole('button', { name: `连接 ${host.name}`, exact: true });
     await connect.click();
-    await expect(session.locator('#saved-connection-status')).toHaveText('正在读取主机凭据…');
+    await expect(session.locator('#connection-panel')).toBeHidden();
+    await expect(session.locator('#terminal-card')).toBeVisible();
+    await expect(session.locator('#terminal-empty')).toBeHidden();
+    await expect(session.locator('#session-subtitle')).toHaveText('正在读取主机凭据…');
     await expect(page.locator('.session-tab-label')).toHaveText(host.name);
-    await connect.click();
+    // 面板已收起，模拟排队的重复点击以验证异步读取保护。
+    await session.getByRole('button', { name: `连接 ${host.name}`, exact: true, includeHidden: true })
+      .evaluate((button: HTMLButtonElement) => button.click());
     await expect.poll(() => credentialReads).toBe(1);
     releaseCredentials();
 
     if (fail) {
-      await expect(session.locator('#saved-connection-status')).toHaveText('测试凭据读取失败');
-      await expect(session.locator('#connection-panel')).toBeVisible();
+      await expect(session.locator('#form-error')).toHaveText('测试凭据读取失败');
+      await expect(session.locator('#session-subtitle')).toHaveText('测试凭据读取失败');
+      await expect(session.locator('#connection-panel')).toBeHidden();
+      await expect(session.locator('.toast.error')).toHaveText('测试凭据读取失败');
       expect(connections).toEqual([]);
       return;
     }
