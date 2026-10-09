@@ -990,6 +990,8 @@ terminalTools = createTerminalTools({
   focusTerminal: () => terminal.focus(),
   refitTerminal: () => fitTerminal(true),
   localize: bilingual,
+  defaultEditorOpen: sessionKind !== 'sftp',
+  reportError: (message) => toast(message, 'error'),
 });
 fileManager = new FileManager({
   elements: collectFileManagerElements(),

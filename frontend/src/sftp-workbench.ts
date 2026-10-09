@@ -94,8 +94,6 @@ export class SftpWorkbench {
     this.terminalToggle.addEventListener('click', () => this.setTerminalOpen(!this.terminalOpen));
     connectionActions.querySelector('#sftp-settings')!.addEventListener('click', actions.configure);
     this.disconnectButton.addEventListener('click', actions.disconnect);
-    // 文件工作台首次展开终端时，优先给终端输出留出空间。
-    document.getElementById('command-editor-close')!.click();
     this.bindResize();
     const observer = new ResizeObserver(() => { if (this.terminalOpen) this.resizeTerminal(); });
     for (const target of [root, this.notice, panel.querySelector('.file-toolbar')!, panel.querySelector('.file-statusbar')!]) observer.observe(target);
