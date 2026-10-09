@@ -260,6 +260,7 @@ const ui = {
   savedPanel: element<HTMLElement>('saved-panel'),
   temporaryPanel: element<HTMLElement>('temporary-panel'),
   savedSearch: element<HTMLInputElement>('saved-search'),
+  savedConnectionStatus: element<HTMLElement>('saved-connection-status'),
   temporarySearch: element<HTMLInputElement>('temporary-search'),
   temporaryList: element<HTMLElement>('temporary-list'),
   temporaryCount: element<HTMLElement>('temporary-count'),
@@ -1211,6 +1212,26 @@ async function applyProfile(profile: SavedProfile): Promise<void> {
   setState(connectionState);
 }
 
+async function connectSavedProfile(profile: SavedProfile): Promise<void> {
+  if (historyPasswordLoading || connectionState === 'connecting' || connectionState === 'connected' || connectionState === 'disconnecting') return;
+  ui.savedConnectionStatus.textContent = bilingual('正在读取主机凭据…', 'Loading host credentials…');
+  ui.savedConnectionStatus.hidden = false;
+  postSessionEvent('label', { label: profile.name || targetLabel(profile.host, profile.port, profile.username) });
+  try {
+    const loading = applyProfile(profile);
+    const generation = historyPasswordLoadGeneration;
+    await loading;
+    if (generation !== historyPasswordLoadGeneration) return;
+    ui.savedConnectionStatus.textContent = bilingual('正在连接…', 'Connecting…');
+    await connect();
+    if (currentFormError) ui.savedConnectionStatus.textContent = ui.formError.textContent;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : bilingual('读取主机凭据失败。', 'Could not read host credentials.');
+    ui.savedConnectionStatus.textContent = message;
+    toast(message, 'error');
+  }
+}
+
 function clearForm(): void {
   historyPasswordLoadGeneration++;
   historyPasswordLoading = false;
@@ -2070,7 +2091,8 @@ async function connect(): Promise<void> {
   const port = Number(ui.port.value);
   const username = ui.username.value.trim();
   currentTargetKey = targetKey(host, port, username);
-  currentTargetLabel = targetLabel(host, port, username);
+  const selectedProfile = profiles.find((profile) => profile.id === ui.profileId.value && passwordContext(profile) === currentTargetKey);
+  currentTargetLabel = selectedProfile?.name || targetLabel(host, port, username);
   setState('connecting');
   const pinnedKey = ui.fingerprint.value.trim() || hostKeys[currentTargetKey] || '';
   currentExpectedFingerprint = pinnedKey;
@@ -2464,7 +2486,7 @@ ui.profileList.addEventListener('click', (clickEvent) => {
   }
   const card = target.closest<HTMLElement>('[data-profile-id]');
   const profile = profiles.find((item) => item.id === card?.dataset.profileId);
-  if (profile) void applyProfile(profile).then(() => connect()).catch((error) => toast(error instanceof Error ? error.message : '读取凭据失败。', 'error'));
+  if (profile) void connectSavedProfile(profile);
 });
 ui.temporaryList.addEventListener('click', (clickEvent) => {
   const target = clickEvent.target as HTMLElement;
@@ -2742,7 +2764,7 @@ async function initialize(): Promise<void> {
   });
   // Dashboard markup is created after the initial page-wide language pass.
   dashboard.setLanguage(currentLanguage);
-  await dashboard.start();
+  await dashboard.start(!isSessionFrame);
   dashboard.setLanguage(currentLanguage);
   if (isSessionFrame) {
     dashboard.openWorkspace();

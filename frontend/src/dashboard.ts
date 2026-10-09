@@ -209,7 +209,7 @@ export class Dashboard {
     return this.form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
   }
 
-  async start(): Promise<void> {
+  async start(loadGlobe = true): Promise<void> {
     try {
       const { account, provider } = await api<{ account: { username: string }; provider: string }>('/api/auth/me');
       this.authenticated = true;
@@ -221,6 +221,7 @@ export class Dashboard {
       this.signedOut();
       this.notice(error instanceof Error ? error.message : '无法验证管理员身份。');
     }
+    if (!loadGlobe) return;
     try {
       const { HostGlobe } = await import('./globe');
       this.globe = new HostGlobe(this.get('#host-globe'), (host) => void this.connectHost(host));
