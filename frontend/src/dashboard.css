@@ -206,7 +206,7 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
   .home-brand { font-size: 21px; }
   .home-search { order: 3; flex-basis: 100%; max-width: none; }
   .home-layout { display: block; }
-  .home-rail { flex-direction: row; gap: 8px; padding: 8px 16px; border-right: none; border-bottom: 1px solid var(--home-line); }
+  .home-rail { flex-direction: row; flex-wrap: wrap; gap: 8px; padding: 8px 16px; border-right: none; border-bottom: 1px solid var(--home-line); }
   #dashboard .rail-item { min-height: 44px; padding: 8px 12px; flex-direction: row; gap: 6px; }
   .rail-security { display: none; }
   .home-content { padding: 24px 16px 20px; }

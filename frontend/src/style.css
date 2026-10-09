@@ -105,11 +105,11 @@ body {
 
 /* Home pages own their scrolling area so the viewport scrollbar starts below
  * the fixed session bar instead of running underneath it. */
-body:is([data-view='dashboard'], [data-view='snippets'], [data-view='forward']) {
+body:is([data-view='dashboard'], [data-view='snippets'], [data-view='forward'], [data-view='settings']) {
   overflow: hidden;
 }
 
-body:is([data-view='dashboard'], [data-view='snippets'], [data-view='forward']) #dashboard {
+body:is([data-view='dashboard'], [data-view='snippets'], [data-view='forward'], [data-view='settings']) #dashboard {
   height: calc(100dvh - var(--session-tabs-height));
   min-height: 0;
   margin-top: var(--session-tabs-height);
@@ -141,7 +141,7 @@ body[data-view='workspace'] .panel-scrim {
 }
 
 /* Light home views align the session bar with the dashboard's white/orange surface tokens. */
-html[data-theme='light'] body:is([data-view='dashboard'], [data-view='snippets'], [data-view='forward']) .session-tabs {
+html[data-theme='light'] body:is([data-view='dashboard'], [data-view='snippets'], [data-view='forward'], [data-view='settings']) .session-tabs {
   --panel: var(--home-surface, #ffffff);
   --border: var(--home-line, #e9ecf1);
   --surface-2: var(--home-bg, #fafbfd);

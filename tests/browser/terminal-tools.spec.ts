@@ -1,96 +1,50 @@
 import { test, expect } from '@playwright/test';
 import { connectFiles, fileFixture, fileSession } from './file-fixture';
 
-test('命令编辑器开关偏好跨新会话和刷新恢复，已有会话不受影响', async ({ page }) => {
+test('命令编辑器手动开关仅影响当前会话，忽略旧本地偏好', async ({ page }) => {
+  const key = 'edgessh:command-editor:collapsed';
+  await page.addInitScript(key => localStorage.setItem(key, 'true'), key);
   await fileFixture(page, { workbench: 'ssh', initialCommand: '' });
   await connectFiles(page);
-  const key = 'edgessh:command-editor:collapsed';
   const first = page.frameLocator('.session-frame-host iframe').nth(0);
   await expect(first.locator('#command-editor')).toBeVisible();
-  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBeNull();
-
+  await first.locator('#command-editor-close').click();
+  await expect(first.locator('#command-editor')).toBeHidden();
   await page.locator('#session-new').click();
-  await expect(page.locator('.session-tab')).toHaveCount(2);
-  await expect(fileSession(page).locator('#connection-panel')).toHaveAttribute('aria-hidden', 'false');
-  await connectFiles(page, 'beta');
   const second = fileSession(page);
-  await second.locator('#command-editor-close').click();
-  await expect(second.locator('#command-editor-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await expect(second.locator('#connection-panel')).toHaveAttribute('aria-hidden', 'false');
+  await connectFiles(page);
+  await expect(second.locator('#command-editor')).toBeVisible();
   expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe('true');
-  expect(await first.locator('#command-editor').evaluate(element => (element as HTMLElement).hidden)).toBe(false);
-
-  await page.locator('#session-new').click();
-  await expect(page.locator('.session-tab')).toHaveCount(3);
-  await expect(fileSession(page).locator('#connection-panel')).toHaveAttribute('aria-hidden', 'false');
-  await connectFiles(page);
-  const third = fileSession(page);
-  await expect(third.locator('#command-editor')).toBeHidden();
-  await expect(third.locator('#command-editor-toggle')).toHaveAttribute('aria-label', '展开命令编辑器');
-  await third.locator('body').evaluate(() => location.reload());
-  await expect(third.locator('#connection-panel')).toHaveAttribute('aria-hidden', 'false');
-  await connectFiles(page);
-  await expect(third.locator('#command-editor')).toBeHidden();
-
-  await third.locator('#command-editor-toggle').click();
-  await expect(third.locator('#command-editor')).toBeVisible();
-  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe('false');
-  await third.locator('body').evaluate(() => location.reload());
-  await expect(third.locator('#connection-panel')).toHaveAttribute('aria-hidden', 'false');
-  await connectFiles(page);
-  await expect(third.locator('#command-editor')).toBeVisible();
-  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe('false');
+  await page.locator('.session-tab').nth(0).click();
+  await expect(first.locator('#command-editor')).toBeHidden();
 });
 
-test('SFTP 默认收起命令编辑器且初始化不覆盖用户偏好', async ({ page }) => {
-  await fileFixture(page);
-  const session = await connectFiles(page);
-  const key = 'edgessh:command-editor:collapsed';
-  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
-  await session.locator('#sftp-terminal-collapse').click();
-  await expect(session.locator('#command-editor')).toBeHidden();
-  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBeNull();
-
-  await session.locator('#command-editor-toggle').click();
-  await expect(session.locator('#command-editor')).toBeVisible();
-  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe('false');
-  await session.locator('body').evaluate(() => location.reload());
-  await expect(session.locator('#connection-panel')).toHaveAttribute('aria-hidden', 'false');
-  await connectFiles(page);
-  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
-  await session.locator('#sftp-terminal-collapse').click();
-  await expect(session.locator('#command-editor')).toBeVisible();
-  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe('false');
-
-  await session.locator('#command-editor-close').click();
-  await page.locator('#session-new').click();
-  await expect(fileSession(page).locator('#connection-panel')).toHaveAttribute('aria-hidden', 'false');
-  await connectFiles(page);
-  await expect(fileSession(page).locator('#command-editor')).toBeHidden();
-  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe('true');
-});
-
-test('命令编辑器偏好存储失败会提示但不阻止切换', async ({ page }) => {
+test('命令编辑器不再访问本地存储，SFTP 默认收起', async ({ page }) => {
   await page.addInitScript(() => {
     const get = Storage.prototype.getItem;
     const set = Storage.prototype.setItem;
     Storage.prototype.getItem = function(key) {
-      if (key === 'edgessh:command-editor:collapsed') throw new Error('Storage unavailable');
+      if (key === 'edgessh:command-editor:collapsed') throw new Error('Unexpected editor storage read');
       return get.call(this, key);
     };
     Storage.prototype.setItem = function(key, value) {
-      if (key === 'edgessh:command-editor:collapsed') throw new Error('Storage unavailable');
+      if (key === 'edgessh:command-editor:collapsed') throw new Error('Unexpected editor storage write');
       set.call(this, key, value);
     };
   });
-  await fileFixture(page, { workbench: 'ssh' });
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await fileFixture(page);
   await connectFiles(page);
   const session = fileSession(page);
-  await expect(session.locator('.toast').filter({ hasText: '无法读取命令编辑器显示偏好' })).toBeVisible();
-  await session.locator('#command-editor-close').click();
+  await session.locator('#sftp-terminal-collapse').click();
   await expect(session.locator('#command-editor')).toBeHidden();
-  await expect(session.locator('.toast').filter({ hasText: '无法保存命令编辑器显示偏好' })).toBeVisible();
   await session.locator('#command-editor-toggle').click();
   await expect(session.locator('#command-editor')).toBeVisible();
+  await session.locator('#command-editor-close').click();
+  await expect(session.locator('#command-editor')).toBeHidden();
+  expect(errors).toEqual([]);
 });
 
 test('快捷工具栏与命令编辑器通过同一终端输入通道发送', async ({ page }, testInfo) => {

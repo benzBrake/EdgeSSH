@@ -1,4 +1,5 @@
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
+import { DEFAULT_SETTINGS } from '../../src/accounts/settings-data';
 
 const host = {
   id: 'alpha', name: 'Tokyo production', host: '192.0.2.10', port: 22, username: 'root',
@@ -22,6 +23,7 @@ async function forwardingFixture(page: Page, previewAvailable = true, noHosts = 
   await page.route('**/api/**', async (route) => {
     const requestURL = new URL(route.request().url());
     const path = requestURL.pathname;
+    if (path === '/api/settings') return route.fulfill({ json: { settings: DEFAULT_SETTINGS, revision: 0, updatedAt: 0 } });
     if (path === '/api/auth/me') return route.fulfill({ json: { account: { username: 'Administrator' }, provider: 'cloudflare' } });
     if (path === '/api/hosts') return route.fulfill({ json: { hosts: noHosts ? [] : [host] } });
     if (path === '/api/forward-rules' && route.request().method() === 'GET') return route.fulfill({ json: { rules } });

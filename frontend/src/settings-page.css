@@ -1,0 +1,30 @@
+body[data-view='settings'] { overflow-y: auto; background: var(--home-bg); }
+html[data-theme='dark'] #dashboard:has(.settings-page:not([hidden])) {
+  --home-bg: #101820; --home-surface: #18232e; --home-ink: #e6eef2; --home-muted: #a0b2c2;
+  --home-line: #2c3e4b; --home-accent-soft: #f4511e1f; --home-danger: #ff929b; color-scheme: dark;
+}
+.settings-page { width: 100%; max-width: 1000px; min-width: 0; margin-inline: auto; padding: 36px 32px; }
+.settings-page fieldset { min-width: 0; margin: 0; padding: 8px 24px 0; border: 1px solid var(--home-line); border-radius: 12px; background: var(--home-surface); }
+.settings-page legend { padding: 0 8px; font-size: 15px; font-weight: 600; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 0; border-bottom: 1px solid var(--home-line); font-size: 14px; }
+.settings-row:last-child { border-bottom: 0; }
+.settings-row > span { min-width: 0; }
+.settings-row small { display: block; margin-top: 7px; color: var(--home-muted); font-size: 12px; line-height: 1.7; }
+#dashboard .settings-row :is(input[type='number'], select) { flex-shrink: 0; width: 220px; max-width: 100%; min-height: 44px; border: 1px solid var(--home-line); border-radius: 7px; padding: 8px 12px; background: var(--home-bg); color: var(--home-ink); }
+#dashboard .settings-row input[type='checkbox'] { flex: 0 0 20px; width: 20px; height: 20px; accent-color: var(--home-accent); }
+.settings-status { min-height: 24px; margin-top: 20px; font-size: 13px; line-height: 1.7; color: var(--home-muted); overflow-wrap: anywhere; }
+.settings-status.is-error { color: var(--home-danger); }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.settings-actions [type='submit'] { margin-left: auto; }
+#dashboard .settings-page .home-button.primary { color: #fff; }
+.settings-demo { padding: 14px 18px; border: 1px solid var(--home-line); border-radius: 8px; color: var(--home-muted); line-height: 1.7; }
+.settings-page [hidden] { display: none !important; }
+@media (max-width: 600px) {
+  .settings-page { padding: 24px 16px; }
+  .settings-page fieldset { padding-inline: 16px; }
+  .settings-row { flex-wrap: wrap; gap: 12px; }
+  .settings-row:has(select) > span, .settings-row:has(input[type='number']) > span { width: 100%; }
+  #dashboard .settings-row :is(input[type='number'], select) { width: 100%; }
+  .settings-row:has(input[type='checkbox']) > span { flex: 1; }
+  .settings-actions .home-button { flex: 1 0 40%; min-height: 44px; }
+}

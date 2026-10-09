@@ -18,6 +18,8 @@ import { resetTerminalForConnection } from './terminal-session';
 import { isDemoMode } from './demo-hosts';
 import { createTerminalTools, type TerminalToolsController } from './terminal-tools';
 import { WebSocketReconnectManager } from './ws-reconnect';
+import { SettingsStore } from './settings-store';
+import { SettingsPage } from './settings-page';
 import type { ReconnectLogEntry } from './ws-reconnect';
 import './style.css';
 
@@ -333,6 +335,9 @@ const ui = {
 };
 
 const isSessionFrame = new URLSearchParams(location.search).get('sessionFrame') === '1';
+const settingsStore = new SettingsStore();
+let initialSettingsResolve: (() => void) | undefined;
+let initialSettingsReject: ((error: Error) => void) | undefined;
 const sessionKind: SessionKind = isSessionFrame && new URLSearchParams(location.search).get('sessionKind') === 'sftp' ? 'sftp' : 'ssh';
 const embeddedSessionId = new URLSearchParams(location.search).get('sessionId') ?? '';
 if (isSessionFrame) document.body.dataset.sessionFrame = 'true';
@@ -572,6 +577,8 @@ function renderEmbeddedSessionTabs(): void {
 }
 
 function activateEmbeddedSession(id: string | null): void {
+  if (dashboard && !dashboard.canLeaveSettings()) return;
+  dashboard?.hideSettings();
   activeEmbeddedSessionId = id;
   sessionHomeSelected = id === null;
   if (id === null || !embeddedSessions.has(id)) {
@@ -610,8 +617,20 @@ function removeEmbeddedSession(id: string): void {
   } else renderEmbeddedSessionTabs();
 }
 
+let openingSession = false;
 function openEmbeddedSession({ kind = 'ssh', profile, connectionTab = 'saved' }: { kind?: SessionKind; profile?: SavedProfile; connectionTab?: 'saved' | 'temporary' } = {}): void {
   if (isSessionFrame) return;
+  if (dashboard && !dashboard.canLeaveSettings()) return;
+  if (!settingsStore.snapshot) {
+    if (openingSession) return;
+    openingSession = true;
+    void settingsStore.load().then(() => {
+      openingSession = false;
+      if (settingsStore.snapshot) openEmbeddedSession({ kind, profile, connectionTab });
+      else showSettings();
+    });
+    return;
+  }
   if (kind === 'sftp' && isDemoMode()) {
     toast(bilingual('演示模式暂不支持文件管理。', 'File management is unavailable in demo mode.'), 'info');
     return;
@@ -672,6 +691,12 @@ if (!isSessionFrame) {
     const session = embeddedSessions.get(message.sessionId);
     if (!session || event.source !== session.iframe.contentWindow) return;
     session.initialized = true;
+    if (message.type === 'settings-request') {
+      if (settingsStore.snapshot) session.iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'settings', snapshot: settingsStore.snapshot }, location.origin);
+      else session.iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'settings-error' }, location.origin);
+      return;
+    }
+    if (message.type === 'open-settings') { showSettings(); return; }
     if (message.type === 'open-files') { openEmbeddedSession({ kind: 'sftp' }); return; }
     if (message.type === 'close-empty') {
       closeEmbeddedSession(message.sessionId);
@@ -708,6 +733,15 @@ if (!isSessionFrame) {
 } else {
   window.addEventListener('message', (event) => {
     if (event.origin !== location.origin || event.source !== window.parent || event.data?.source !== 'edgessh-parent') return;
+    if (event.data.type === 'settings') {
+      try { settingsStore.accept(event.data.snapshot); initialSettingsResolve?.(); }
+      catch (error) {
+        const failure = error instanceof Error ? error : new Error(bilingual('设置响应无效。', 'Invalid settings response.'));
+        if (initialSettingsReject) initialSettingsReject(failure);
+        else toast(failure.message, 'error');
+      }
+    }
+    if (event.data.type === 'settings-error') initialSettingsReject?.(new Error(bilingual('设置尚未加载，请返回设置页重试。', 'Settings have not loaded. Return to Settings and retry.')));
     if (event.data.type === 'session-focus') dashboard?.openWorkspace();
     if (event.data.type === 'session-close') {
       if (!confirmEndSession()) { postSessionEvent('close-result', { accepted: false }); return; }
@@ -985,14 +1019,37 @@ const fitAddon = new FitAddon();
 terminal.loadAddon(fitAddon);
 terminal.loadAddon(new WebLinksAddon());
 terminal.open(ui.terminalElement);
-terminalTools = createTerminalTools({
-  send: sendTerminalData,
-  focusTerminal: () => terminal.focus(),
-  refitTerminal: () => fitTerminal(true),
-  localize: bilingual,
-  defaultEditorOpen: sessionKind !== 'sftp',
-  reportError: (message) => toast(message, 'error'),
+let reportedSettingsError = '';
+settingsStore.addEventListener('change', () => {
+  if (!isSessionFrame && settingsStore.error && reportedSettingsError !== settingsStore.error && document.body.dataset.view !== 'settings') {
+    toast(bilingual('设置同步失败，请在设置页重新加载。', 'Settings sync failed. Open Settings and reload.'), 'error');
+  }
+  reportedSettingsError = settingsStore.error;
+  const snapshot = settingsStore.snapshot;
+  if (!snapshot) return;
+  const { settings } = snapshot;
+  const resized = terminal.options.fontSize !== settings.fontSize;
+  terminal.options.fontSize = settings.fontSize;
+  terminal.options.cursorStyle = settings.cursorStyle;
+  terminal.options.cursorBlink = settings.cursorBlink;
+  if (resized) requestAnimationFrame(() => fitTerminal(true));
+  if (!isSessionFrame) for (const session of embeddedSessions.values()) {
+    session.iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'settings', snapshot }, location.origin);
+  }
 });
+
+function showSettings(): void {
+  if (isSessionFrame) { postSessionEvent('open-settings'); return; }
+  sessionUI.frameHost.hidden = true;
+  sessionHomeSelected = true;
+  dashboard?.showSettings(); renderEmbeddedSessionTabs();
+}
+element<HTMLButtonElement>('session-settings').addEventListener('click', showSettings);
+if (!isSessionFrame) {
+  const refreshSettings = () => { if (document.visibilityState === 'visible' && !settingsStore.saving) void settingsStore.load(); };
+  window.addEventListener('focus', refreshSettings);
+  document.addEventListener('visibilitychange', refreshSettings);
+}
 fileManager = new FileManager({
   elements: collectFileManagerElements(),
   getLanguage: () => currentLanguage,
@@ -2710,7 +2767,7 @@ ui.resourceNetworkSelect.addEventListener('change', () => {
 });
 terminal.onData((data) => terminalTools?.handleTerminalData(data));
 new ResizeObserver(() => fitTerminal(true)).observe(ui.terminalStage);
-window.addEventListener('beforeunload', () => {
+window.addEventListener('pagehide', () => {
   fileManager.reset();
   fileTree?.setReady(false);
   fileTree?.destroy();
@@ -2772,13 +2829,25 @@ async function initialize(): Promise<void> {
     });
   }
   dashboard = new Dashboard({
+    settings: new SettingsPage(settingsStore),
+    openSettings: showSettings,
     openFiles: () => {
       if (isSessionFrame) postSessionEvent('open-files');
       else openEmbeddedSession({ kind: 'sftp' });
     },
     snippets: new Snippets(sftpWorkbench?.terminalPane.querySelector<HTMLElement>('.terminal-stage') ?? ui.terminalCard, (snippet) => {
       sftpWorkbench?.setTerminalOpen(true);
-      // 片段只进入草稿，尤其多行命令不能通过粘贴意外立即执行。
+      const settings = settingsStore.snapshot?.settings;
+      if (!settings) { toast(bilingual('请先加载设置。', 'Load settings first.'), 'error'); return false; }
+      const editorHidden = document.getElementById('command-editor')!.hidden;
+      if (editorHidden && settings.collapsedSnippetAction === 'terminal' && !/[\r\n]/.test(snippet.command)) {
+        if (connectionState !== 'connected') { toast(bilingual('终端未连接，无法输入片段。', 'The terminal is disconnected. Cannot insert the snippet.'), 'error'); return false; }
+        sendTerminalData(snippet.command);
+        terminal.focus();
+        toast(bilingual('已输入终端，按回车执行。', 'Inserted into terminal. Press Enter to run.'), 'info');
+        return true;
+      }
+      // 多行片段始终进入草稿，避免换行触发执行。
       const input = document.getElementById('command-editor-input') as HTMLTextAreaElement;
       if (input.value.trim() && input.value !== snippet.command
         && !confirm(bilingual('替换命令编辑器中的现有内容？', 'Replace the current command draft?'))) return false;
@@ -2842,6 +2911,24 @@ async function initialize(): Promise<void> {
   dashboard.setLanguage(currentLanguage);
   await dashboard.start(!isSessionFrame);
   dashboard.setLanguage(currentLanguage);
+  if (isSessionFrame) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error(bilingual('等待设置同步超时，请重新打开工作台。', 'Settings sync timed out. Reopen the workspace.'))), 15_000);
+        initialSettingsResolve = () => { clearTimeout(timeout); resolve(); };
+        initialSettingsReject = (error) => { clearTimeout(timeout); reject(error); };
+        postSessionEvent('settings-request');
+      });
+    } finally { initialSettingsResolve = undefined; initialSettingsReject = undefined; }
+    terminalTools = createTerminalTools({
+      send: sendTerminalData, focusTerminal: () => terminal.focus(), refitTerminal: () => fitTerminal(true), localize: bilingual,
+      defaultEditorOpen: sessionKind !== 'sftp' && settingsStore.snapshot!.settings.sshEditorDefaultOpen,
+      reportError: (message) => toast(message, 'error'),
+    });
+  } else {
+    await settingsStore.load();
+    if (settingsStore.error) showSettings();
+  }
   if (isSessionFrame) {
     dashboard.openWorkspace();
     const profileId = new URLSearchParams(location.search).get('profileId');

@@ -1,4 +1,5 @@
 import { expect, type Page, type WebSocketRoute } from '@playwright/test';
+import { DEFAULT_SETTINGS, type SettingsSnapshot, type WorkspaceSettings } from '../../src/accounts/settings-data';
 
 const fingerprint = `SHA256:${'A'.repeat(43)}`;
 const host = (id: string, name: string, address: string) => ({
@@ -12,7 +13,9 @@ const entry = (name: string, type = 'file', size = 12) => ({
 });
 
 // 只在测试浏览器内模拟 API/协议，不访问真实主机、不增加生产认证绕过。
-export async function fileFixture(page: Page, options: { firstSeen?: boolean; credentialError?: boolean; noHosts?: boolean; holdUpload?: boolean; holdSftp?: boolean; sftpError?: boolean; initialCommand?: string; workbench?: 'ssh' | 'sftp' | 'none' } = {}) {
+export async function fileFixture(page: Page, options: { firstSeen?: boolean; credentialError?: boolean; noHosts?: boolean; holdUpload?: boolean; holdSftp?: boolean; sftpError?: boolean; initialCommand?: string; workbench?: 'ssh' | 'sftp' | 'none'; settings?: WorkspaceSettings; settingsError?: boolean } = {}) {
+  const settingsState = { snapshot: { settings: { ...DEFAULT_SETTINGS, ...options.settings }, revision: 0, updatedAt: 0 } as SettingsSnapshot,
+    reads: 0, writes: 0, readError: options.settingsError ?? false, saveError: false };
   const hosts = options.noHosts ? [] : [host('alpha', 'Tokyo production', '192.0.2.10'), host('beta', 'Singapore backup', '192.0.2.20')]
     .map(item => ({ ...item, initialCommand: options.initialCommand ?? item.initialCommand }));
   const directories = new Map([
@@ -27,6 +30,18 @@ export async function fileFixture(page: Page, options: { firstSeen?: boolean; cr
   const uploaded: Buffer[] = [];
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === '/api/settings') {
+      if (route.request().method() === 'GET') {
+        settingsState.reads++;
+        return route.fulfill(settingsState.readError ? { status: 500, json: { error: '设置加载失败，请重试。' } } : { json: settingsState.snapshot });
+      }
+      settingsState.writes++;
+      if (settingsState.saveError) return route.fulfill({ status: 500, json: { error: '保存失败，请重试。' } });
+      const { settings, revision } = route.request().postDataJSON();
+      if (revision !== settingsState.snapshot.revision) return route.fulfill({ status: 409, json: { error: '设置已在其他设备更新，请重新加载后再保存。' } });
+      settingsState.snapshot = { settings, revision: revision + 1, updatedAt: Date.now() };
+      return route.fulfill({ json: settingsState.snapshot });
+    }
     if (path === '/api/auth/me') return route.fulfill({ json: { account: { username: 'Administrator' }, provider: 'cloudflare' } });
     if (path === '/api/session') return route.fulfill({ json: { ticket: 'test-ticket', sessionId: crypto.randomUUID() } });
     if (path.endsWith('/credentials')) {
@@ -110,7 +125,7 @@ export async function fileFixture(page: Page, options: { firstSeen?: boolean; cr
   if (options.workbench === 'ssh') await page.locator('#session-new').click();
   else if (options.workbench !== 'none') await page.locator('#rail-files').click();
   if (options.workbench !== 'none') await expect(fileSession(page).locator('#connection-panel')).toHaveAttribute('aria-hidden', 'false');
-  return { hosts, calls, sshSockets, sftpSockets, uploaded, directories };
+  return { hosts, calls, sshSockets, sftpSockets, uploaded, directories, settingsState };
 }
 
 export async function connectFiles(page: Page, id = 'alpha') {

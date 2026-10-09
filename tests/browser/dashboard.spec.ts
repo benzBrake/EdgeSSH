@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { DEFAULT_SETTINGS } from '../../src/accounts/settings-data';
 
 const host = {
   id: 'alpha', name: 'Tokyo production', host: '192.0.2.10', port: 2222, username: 'deploy',
@@ -10,6 +11,7 @@ const host = {
 async function dashboardFixture(page: Page) {
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === '/api/settings') return route.fulfill({ json: { settings: DEFAULT_SETTINGS, revision: 0, updatedAt: 0 } });
     if (path === '/api/auth/me') {
       return route.fulfill({ json: { account: { username: 'local-development' }, provider: 'local-dev' } });
     }
@@ -354,6 +356,7 @@ test('会话 Tab 与主机总览之间切换不会重复发送终端 resize', as
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/auth/me') return route.fulfill({ json: { account: { username: 'Administrator' }, provider: 'local-dev' } });
+    if (path === '/api/settings') return route.fulfill({ json: { settings: DEFAULT_SETTINGS, revision: 0, updatedAt: 0 } });
     if (path === '/api/hosts') {
       if (route.request().method() !== 'GET') hostWrites.push(route.request().method());
       return route.fulfill({ json: { hosts: [host] } });
@@ -397,6 +400,7 @@ test('会话终端中的管理代码片段可打开管理页并返回工作台',
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/auth/me') return route.fulfill({ json: { account: { username: 'Administrator' }, provider: 'local-dev' } });
+    if (path === '/api/settings') return route.fulfill({ json: { settings: DEFAULT_SETTINGS, revision: 0, updatedAt: 0 } });
     if (path === '/api/hosts') return route.fulfill({ json: { hosts: [host] } });
     if (path.endsWith('/credentials')) return route.fulfill({ json: { password: 'test-password' } });
     if (path === '/api/session') return route.fulfill({ json: { ticket: 'test-ticket', sessionId: 'test-session' } });

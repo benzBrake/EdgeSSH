@@ -7,18 +7,22 @@ import { systemIcon } from './os-icons';
 import { isDemoMode } from './demo-hosts';
 import './dashboard.css';
 import { generateEd25519KeyPair } from './ssh-keygen';
+import type { SettingsPage } from './settings-page';
 
 interface DashboardActions {
+  settings: SettingsPage;
+  openSettings(): void;
   openFiles(): void;
   snippets: Snippets;
   refresh(): Promise<CloudHost[]>;
   connect(host: CloudHost): Promise<boolean | void>;
   quickConnect(): void;
   leaveWorkspace(): void;
-  onViewChange?(view: 'dashboard' | 'workspace' | 'snippets' | 'forward'): void;
+  onViewChange?(view: 'dashboard' | 'workspace' | 'snippets' | 'forward' | 'settings'): void;
 }
 
 const icons = {
+  settings: '<path d="M9 3h6l1 4 4 1v8l-4 1-1 4H9l-1-4-4-1V8l4-1Z"/><circle cx="12" cy="12" r="3"/>',
   home: '<path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/>',
   server: '<rect x="4" y="3" width="16" height="7" rx="2"/><rect x="4" y="14" width="16" height="7" rx="2"/><path d="M8 6.5h.01M8 17.5h.01M15 6.5h2M15 17.5h2"/>',
   terminal: '<path d="m5 6 6 6-6 6m8 0h6"/>',
@@ -66,6 +70,7 @@ export class Dashboard {
           <button class="rail-item" id="rail-snippets">${icon('snippets')}<span>代码片段</span></button>
           <button class="rail-item" id="rail-forward">${icon('forward')}<span>端口转发</span></button>
           <button class="rail-item" id="quick-connect">${icon('terminal')}<span>临时连接</span></button>
+          <button class="rail-item" id="rail-settings">${icon('settings')}<span>设置</span></button>
           <span class="rail-security" title="管理员身份认证">${icon('shield')}<span id="auth-provider-label">身份<br>保护</span></span>
         </nav>
         <main class="home-content">
@@ -134,6 +139,7 @@ export class Dashboard {
     document.body.prepend(this.root);
     this.get('.home-layout').append(this.actions.snippets.page);
     this.get('.home-layout').append(this.forwarding.root);
+    this.get('.home-layout').append(this.actions.settings.root);
     this.dialog = this.get<HTMLDialogElement>('#host-editor-dialog');
     this.keyPreviewDialog = this.get<HTMLDialogElement>('#key-preview-dialog');
     this.keyPreviewDialog.addEventListener('close', () => {
@@ -172,17 +178,21 @@ export class Dashboard {
     this.get('#host-search').addEventListener('input', () => this.renderList());
     this.get('#refresh-hosts').addEventListener('click', () => void this.refresh());
     this.get('#rail-overview').addEventListener('click', () => {
+      if (!this.canLeaveSettings()) return;
       if (!this.isHome) this.actions.leaveWorkspace();
       this.show();
     });
     this.get('#rail-files').addEventListener('click', () => {
+      if (!this.canLeaveSettings()) return;
       if (isDemoMode()) { this.notice('演示模式暂不支持文件管理。'); return; }
       this.actions.openFiles();
     });
     this.get('#rail-snippets').addEventListener('click', () => this.showSnippets());
     this.get('#rail-forward').addEventListener('click', () => this.showForwarding());
+    this.get('#rail-settings').addEventListener('click', () => this.actions.openSettings());
     for (const id of ['#quick-connect', '#bottom-quick']) this.get(id).addEventListener('click', () => {
       if (this.busy) return;
+      if (!this.canLeaveSettings()) return;
       this.actions.leaveWorkspace();
       this.actions.quickConnect();
     });
@@ -249,6 +259,8 @@ export class Dashboard {
   }
 
   show(): void {
+    if (!this.canLeaveSettings()) return;
+    this.actions.settings.hide();
     this.forwarding.hide();
     this.actions.snippets.hide();
     this.isHome = true; this.root.hidden = false;
@@ -261,6 +273,8 @@ export class Dashboard {
   }
 
   openWorkspace(): void {
+    if (!this.canLeaveSettings()) return;
+    this.actions.settings.hide();
     this.forwarding.hide();
     this.actions.snippets.hide();
     this.isHome = false; this.root.hidden = true;
@@ -273,6 +287,8 @@ export class Dashboard {
   }
 
   showSnippets(fromTerminal = false): void {
+    if (!this.canLeaveSettings()) return;
+    this.actions.settings.hide();
     this.forwarding.hide();
     // 仅切换视图，不结束 SSH；在片段页编辑后可回到同一会话。
     this.isHome = false; this.root.hidden = false;
@@ -287,6 +303,8 @@ export class Dashboard {
 
   showForwarding(): void {
     if (isDemoMode()) { this.notice('演示模式暂不支持端口转发。'); return; }
+    if (!this.canLeaveSettings()) return;
+    this.actions.settings.hide();
     this.actions.snippets.hide();
     this.isHome = false; this.root.hidden = false;
     this.get('.home-content').hidden = true;
@@ -296,6 +314,18 @@ export class Dashboard {
     this.selectNavigation('rail-forward');
     this.globe?.setActive(false);
     this.forwarding.show();
+  }
+
+  canLeaveSettings(): boolean { return this.actions.settings.root.hidden || this.actions.settings.canLeave(); }
+  hideSettings(): void { this.actions.settings.hide(); }
+
+  showSettings(): void {
+    this.forwarding.hide(); this.actions.snippets.hide();
+    this.isHome = false; this.root.hidden = false; this.get('.home-content').hidden = true;
+    document.getElementById('app')!.hidden = true;
+    document.body.dataset.view = 'settings'; this.selectNavigation('rail-settings');
+    this.globe?.setActive(false); this.actions.onViewChange?.('settings');
+    this.actions.settings.show();
   }
 
   private selectNavigation(id: string): void {
@@ -482,8 +512,9 @@ export class Dashboard {
   setLanguage(language: 'zh-CN' | 'en'): void {
     this.language = language;
     this.actions.snippets.refreshLanguage();
+    this.actions.settings.refreshLanguage();
     const english: Record<string, string> = {
-      '总览': 'Overview', '主机': 'Hosts', '文件管理': 'Files', '代码片段': 'Snippets', '端口转发': 'Port forwarding',
+      '总览': 'Overview', '主机': 'Hosts', '文件管理': 'Files', '代码片段': 'Snippets', '端口转发': 'Port forwarding', '设置': 'Settings',
       '我的主机': 'My hosts', '安全保存，随处连接。': 'Save securely, connect anywhere.', '添加主机': 'Add host', '新建主机': 'New host', '＋ 新建主机': '+ New host', '＋ 添加主机': '+ Add host',
       '主机地址': 'Host address', '搜索主机、分组或 IP 地址': 'Search hosts, groups, or IP addresses', '刷新列表 ↻': 'Refresh list ↻',
       '散布全球，': 'Around the world,', '就在手边。': 'right at hand.', '点击国旗，即刻连接。': 'Click a flag to connect.', '暂停旋转': 'Pause rotation',

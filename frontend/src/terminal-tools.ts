@@ -14,7 +14,6 @@ const KEY_SEQUENCES: Readonly<Record<string, string>> = Object.freeze({
 });
 
 const ARROW_SEQUENCE = /^\x1b\[([ABCD])$/;
-const EDITOR_COLLAPSED_STORAGE_KEY = 'edgessh:command-editor:collapsed';
 
 export function applyTerminalModifiers(data: string, modifiers: TerminalModifierState): string {
   if (!modifiers.ctrl && !modifiers.alt) return data;
@@ -118,17 +117,7 @@ export function createTerminalTools(options: TerminalToolsOptions): TerminalTool
     sendMenuButton.disabled = !connected || !hasCommand;
   };
 
-  const readEditorOpen = () => {
-    try {
-      const collapsed = localStorage.getItem(EDITOR_COLLAPSED_STORAGE_KEY);
-      if (collapsed === 'true' || collapsed === 'false') return collapsed === 'false';
-    } catch {
-      options.reportError(options.localize('无法读取命令编辑器显示偏好，本次使用默认状态。', 'Could not read the command editor display preference. The default state will apply.'));
-    }
-    return options.defaultEditorOpen;
-  };
-
-  const setEditorOpen = (open: boolean, persist = false) => {
+  const setEditorOpen = (open: boolean) => {
     editor.hidden = !open;
     editorToggle.setAttribute('aria-expanded', String(open));
     editorToggle.setAttribute('aria-label', open
@@ -137,10 +126,6 @@ export function createTerminalTools(options: TerminalToolsOptions): TerminalTool
     if (!open) {
       sendOptions.hidden = true;
       sendMenuButton.setAttribute('aria-expanded', 'false');
-    }
-    if (persist) {
-      try { localStorage.setItem(EDITOR_COLLAPSED_STORAGE_KEY, String(!open)); }
-      catch { options.reportError(options.localize('无法保存命令编辑器显示偏好，本次切换仍然有效。', 'Could not save the command editor display preference. The current change still applies.')); }
     }
     requestAnimationFrame(options.refitTerminal);
   };
@@ -173,9 +158,9 @@ export function createTerminalTools(options: TerminalToolsOptions): TerminalTool
     options.focusTerminal();
   });
 
-  editorToggle.addEventListener('click', () => setEditorOpen(editor.hidden, true));
+  editorToggle.addEventListener('click', () => setEditorOpen(editor.hidden));
   editorClose.addEventListener('click', () => {
-    setEditorOpen(false, true);
+    setEditorOpen(false);
     editorToggle.focus();
   });
   textarea.addEventListener('input', updateActions);
@@ -211,7 +196,7 @@ export function createTerminalTools(options: TerminalToolsOptions): TerminalTool
 
   updateActions();
   refreshModifierButtons();
-  setEditorOpen(readEditorOpen());
+  setEditorOpen(options.defaultEditorOpen);
 
   return {
     handleTerminalData,

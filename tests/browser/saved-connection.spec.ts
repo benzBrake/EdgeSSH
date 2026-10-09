@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { DEFAULT_SETTINGS } from '../../src/accounts/settings-data';
 
 const host = {
   id: 'alpha', name: 'Tokyo production', host: '192.0.2.10', port: 22, username: 'root',
@@ -15,6 +16,7 @@ for (const fail of [false, true]) {
     const connections: Array<Record<string, unknown>> = [];
     await page.route('**/api/**', async (route) => {
       const path = new URL(route.request().url()).pathname;
+      if (path === '/api/settings') return route.fulfill({ json: { settings: DEFAULT_SETTINGS, revision: 0, updatedAt: 0 } });
       if (path === '/api/auth/me') return route.fulfill({ json: { account: { username: 'local-development' }, provider: 'local-dev' } });
       if (path === '/api/hosts') return route.fulfill({ json: { hosts: [host] } });
       if (path.endsWith('/credentials')) {
