@@ -27,7 +27,7 @@ body[data-view='snippets'] { overflow-y: auto; background: var(--home-bg); }
 #dashboard .snippet-page :is(button, input):focus-visible, .snippet-page-dialog :is(button, input, textarea):focus-visible { outline: 2px solid var(--home-accent); outline-offset: 3px; }
 #dashboard .snippet-page svg, .snippet-page-dialog button svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .snippet-page .snippet-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-#dashboard .snippet-page button[data-new] { width: auto; gap: 8px; padding: 0 14px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+#dashboard .snippet-page button[data-new], #dashboard .snippet-page .snippet-open-terminal { width: auto; gap: 8px; padding: 0 14px; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .snippet-page .snippet-search { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 160px; height: 44px; padding: 0 14px; border: 1px solid var(--library-line); border-radius: 10px; background: var(--home-surface); }
 .snippet-page .snippet-search > span { display: flex; flex: 0 0 auto; color: var(--home-accent-hover); }
 .snippet-page .snippet-search:hover { border-color: var(--home-accent); }

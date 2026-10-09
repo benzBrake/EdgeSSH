@@ -22,9 +22,9 @@ export class Snippets {
       <p>把常用命令留在手边，不必每次从头输入。</p></div>
       <button type="button" class="snippet-open-terminal" aria-label="返回终端" title="返回终端"
         data-i18n-aria-label-zh="返回终端" data-i18n-aria-label-en="Back to terminal"
-        data-i18n-title-zh="返回终端" data-i18n-title-en="Back to terminal"></button></header>`;
+        data-i18n-title-zh="返回终端" data-i18n-title-en="Back to terminal"><span data-i18n-zh="返回终端" data-i18n-en="Back to terminal">返回终端</span></button></header>`;
     const back = this.page.querySelector<HTMLButtonElement>('.snippet-open-terminal')!;
-    back.append(createElement(Terminal, { 'aria-hidden': 'true' }));
+    back.prepend(createElement(Terminal, { 'aria-hidden': 'true' }));
     back.addEventListener('click', openTerminal);
     this.page.append(new SnippetList(this.store, editor).root);
     this.panel = new SnippetPanel(container, this.store, editor, use, openLibrary, initiallyCollapsed, reportError);
