@@ -2819,7 +2819,6 @@ async function initialize(): Promise<void> {
     title.textContent = bilingual('SFTP 工作台', 'SFTP workspace');
     ui.initialCommand.closest('label')!.hidden = true;
     sftpWorkbench = new SftpWorkbench(ui.terminalCard, ui.fileManagerPanel, fileManager, {
-      configure: () => { setPanelOpen(true); requestAnimationFrame(() => ui.panelClose.focus()); },
       disconnect: () => { if (confirmEndSession()) disconnect(); },
       fitTerminal: () => fitTerminal(true),
       focusTerminal: () => terminal.focus(),

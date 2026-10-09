@@ -131,7 +131,6 @@ export async function fileFixture(page: Page, options: { firstSeen?: boolean; cr
 export async function connectFiles(page: Page, id = 'alpha') {
   if (!await page.locator('.session-frame-host iframe').count()) await page.locator('#session-new').click();
   const session = fileSession(page);
-  if (await session.locator('#connection-panel').getAttribute('aria-hidden') === 'true') await session.locator('#sftp-settings').click();
   await session.locator(`#profile-list [data-profile-id="${id}"]`).click();
   return session;
 }

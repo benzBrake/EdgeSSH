@@ -12,7 +12,6 @@
 .sftp-workbench > .terminal-pane { grid-row: 4; }
 .sftp-connection-actions { display: flex; align-items: center; gap: 6px; flex: 0 1 auto; flex-wrap: wrap; max-width: 100%; font-family: var(--sans); }
 .sftp-connection-actions button { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 7px; font-size: 11px; white-space: nowrap; }
-.sftp-connection-actions svg { width: 15px; height: 15px; }
 #sftp-disconnect { color: var(--danger); }
 .sftp-state { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .sftp-state[data-state='connected'] { color: var(--accent); }
@@ -60,7 +59,6 @@
 @media (max-width: 600px) {
   .sftp-connection-actions { margin-left: auto; gap: 5px; }
   .sftp-connection-actions button { min-height: 40px; }
-  .sftp-connection-actions #sftp-settings span { display: none; }
   .sftp-workbench #sftp-terminal-collapse { width: 40px; height: 40px; }
   .sftp-workbench .file-action { min-width: 40px; width: 40px; height: 40px; }
   .sftp-workbench .file-view-controls .file-action { width: 40px; height: 40px; }

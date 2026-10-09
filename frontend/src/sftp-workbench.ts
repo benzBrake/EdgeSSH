@@ -1,11 +1,10 @@
-import { createElement, SlidersHorizontal, ChevronDown, ChevronUp, ArrowLeft, ArrowUp, House, RefreshCw, Upload, Download, FolderPlus, Pencil, Trash2 } from 'lucide';
+import { createElement, ChevronDown, ChevronUp, ArrowLeft, ArrowUp, House, RefreshCw, Upload, Download, FolderPlus, Pencil, Trash2 } from 'lucide';
 import type { FileManager, FileServiceState } from './file-manager';
 import type { ArboristFileList } from './file-list';
 import type { ConnectionControlState } from './ui-state';
 import './sftp-workbench.css';
 
 interface SftpWorkbenchActions {
-  configure(): void;
   disconnect(): void;
   fitTerminal(): void;
   focusTerminal(): void;
@@ -36,11 +35,9 @@ export class SftpWorkbench {
     connectionActions.className = 'sftp-connection-actions';
     connectionActions.innerHTML = `
       <span id="sftp-connection-state" class="sftp-state" role="status" aria-live="polite"></span>
-      <button id="sftp-settings" class="small-button" type="button"><span data-i18n-zh="连接设置" data-i18n-en="Connection settings">连接设置</span></button>
       <button id="sftp-disconnect" class="small-button" type="button"></button>`;
     root.querySelector<HTMLElement>('.session-target')!.hidden = true;
     panel.querySelector('.file-statusbar')!.append(connectionActions);
-    connectionActions.querySelector('#sftp-settings')!.prepend(createElement(SlidersHorizontal, { 'aria-hidden': 'true' }));
     for (const [id, icon] of [
       ['file-back', ArrowLeft], ['file-up', ArrowUp], ['file-home', House], ['file-refresh', RefreshCw],
       ['file-upload', Upload], ['file-download', Download], ['file-mkdir', FolderPlus], ['file-rename', Pencil], ['file-delete', Trash2],
@@ -92,7 +89,6 @@ export class SftpWorkbench {
     this.terminalToggle = collapse;
     terminalHeader.querySelector('.terminal-actions')!.append(collapse);
     this.terminalToggle.addEventListener('click', () => this.setTerminalOpen(!this.terminalOpen));
-    connectionActions.querySelector('#sftp-settings')!.addEventListener('click', actions.configure);
     this.disconnectButton.addEventListener('click', actions.disconnect);
     this.bindResize();
     const observer = new ResizeObserver(() => { if (this.terminalOpen) this.resizeTerminal(); });
@@ -179,9 +175,6 @@ export class SftpWorkbench {
     this.terminalToggle.title = toggleLabel;
     this.terminalToggle.replaceChildren(createElement(this.terminalOpen ? ChevronDown : ChevronUp, { 'aria-hidden': 'true' }));
     this.divider.setAttribute('aria-label', localize('调整终端高度', 'Resize terminal'));
-    this.root.querySelector('#sftp-settings span')!.textContent = localize('连接设置', 'Connection settings');
-    this.root.querySelector('#sftp-settings')!.setAttribute('title', localize('连接设置', 'Connection settings'));
-    this.root.querySelector('#sftp-settings')!.setAttribute('aria-label', localize('连接设置', 'Connection settings'));
     this.terminalPane.querySelector('.sftp-terminal-title')!.textContent = localize('SSH 终端', 'SSH terminal');
     this.panel.setAttribute('aria-label', localize('远程文件', 'Remote files'));
     this.renderConnection();

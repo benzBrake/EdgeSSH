@@ -149,8 +149,9 @@ test('更换主机清理旧会话并更新标签', async ({ page }) => {
   await session.locator('#sftp-disconnect').click();
   await expect(session.locator('#file-upload')).toBeDisabled();
   await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 未连接');
-  await session.locator('#sftp-settings').click();
-  await session.locator('#panel-close').click();
+  await page.locator('.session-tab-close').click();
+  await expect(page.locator('.session-tab')).toHaveCount(0);
+  await page.locator('#rail-files').click();
   await expect(page.locator('.session-tab')).toHaveCount(1);
   await connectFiles(page, 'beta');
   await expect(session.locator('#file-upload')).toBeEnabled();
@@ -236,7 +237,7 @@ test('关闭读取凭据中的标签后，迟到结果不会启动会话', async
   expect(fixture.sshSockets).toHaveLength(0);
 });
 
-test('确认主动断开后取消传输并可在原标签重连', async ({ page }) => {
+test('确认主动断开后取消传输并可在新标签重连', async ({ page }) => {
   const fixture = await fileFixture(page, { holdUpload: true });
   const session = await connectFiles(page);
   await expect(session.locator('#file-upload')).toBeEnabled();
@@ -248,6 +249,9 @@ test('确认主动断开后取消传输并可在原标签重连', async ({ page 
   await expect(session.locator('#file-manager-progress')).toBeHidden();
   await expect(page.locator('.session-tab')).toHaveCount(1);
   expect(fixture.calls.filter(call => call.type === 'sftp_close')).toHaveLength(1);
+  await page.locator('.session-tab-close').click();
+  await expect(page.locator('.session-tab')).toHaveCount(0);
+  await page.locator('#rail-files').click();
   await connectFiles(page, 'beta');
   await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
   expect(fixture.sshSockets).toHaveLength(2);
