@@ -18,7 +18,7 @@ export class SettingsPage {
   constructor(readonly store: SettingsStore) {
     this.root.id = 'settings-page'; this.root.className = 'settings-page'; this.root.hidden = true;
     this.root.innerHTML = `<header class="home-section-heading"><div><p class="home-eyebrow">WORKSPACE SETTINGS</p>
-      <h1 tabindex="-1">${translated('设置', 'Settings')}</h1><p>${translated('在你的设备间同步终端偏好。', 'Sync terminal preferences across your devices.')}</p></div></header>
+      <h1 tabindex="-1">${translated('设置', 'Settings')}</h1><p>${translated('在你的设备间同步工作区偏好。', 'Sync workspace preferences across your devices.')}</p></div></header>
       <p class="settings-demo" ${isDemoMode() ? '' : 'hidden'}>${translated('演示模式：设置只保存在本页内存，不会同步到数据库。', 'Demo mode: settings stay in page memory and are not synced to the database.')}</p>
       <form><fieldset disabled><legend>${translated('终端', 'Terminal')}</legend>
       <label class="settings-row"><span>${translated('终端字号', 'Terminal font size')}<small>10–24 px</small></span><input name="fontSize" type="number" min="10" max="24" step="1" required></label>
@@ -28,6 +28,12 @@ export class SettingsPage {
       <label class="settings-row"><span>${translated('SSH 命令编辑器默认展开', 'Expand SSH command editor by default')}<small>${translated('只影响新建 SSH 工作台。', 'Applies only to new SSH workspaces.')}</small></span><input name="sshEditorDefaultOpen" type="checkbox"></label>
       <label class="settings-row"><span>${translated('编辑器收起时点击片段', 'Snippet clicks when editor is collapsed')}<small>${translated('输入终端不追加回车；多行片段仍进入编辑器。', 'Terminal input adds no Enter; multiline snippets still open in the editor.')}</small></span><select name="collapsedSnippetAction">
         <option value="editor" data-i18n-zh="展开并填入编辑器" data-i18n-en="Expand and fill editor">展开并填入编辑器</option><option value="terminal" data-i18n-zh="输入到终端" data-i18n-en="Insert into terminal">输入到终端</option></select></label>
+      </fieldset><fieldset disabled><legend>${translated('会话标签栏', 'Session tab bar')}</legend>
+      <p class="settings-hint">${translated('控制右侧操作按钮的显示，手机会话菜单同步生效。退出按钮始终保留；隐藏设置按钮后，可从主页侧栏进入设置。', 'Choose which action buttons appear, including in the mobile session menu. Logout stays available; open Settings from the home sidebar if its button is hidden.')}</p>
+      <label class="settings-row"><span>${translated('显示设置按钮', 'Show settings button')}</span><input name="showSettings" type="checkbox"></label>
+      <label class="settings-row"><span>${translated('显示主题切换按钮', 'Show theme toggle')}</span><input name="showThemeToggle" type="checkbox"></label>
+      <label class="settings-row"><span>${translated('显示语言切换按钮', 'Show language toggle')}</span><input name="showLanguageToggle" type="checkbox"></label>
+      <label class="settings-row"><span>${translated('显示源代码仓库按钮', 'Show source repository button')}</span><input name="showSourceLink" type="checkbox"></label>
       </fieldset><div class="settings-status" role="status" aria-live="polite"></div>
       <div class="settings-actions"><button class="home-button" type="button" data-reload>${translated('重新加载', 'Reload')}</button>
       <button class="home-button" type="button" data-defaults>${translated('恢复默认', 'Restore defaults')}</button>
@@ -62,13 +68,20 @@ export class SettingsPage {
   private read(): WorkspaceSettings {
     return { fontSize: Number(this.field('fontSize').value), cursorStyle: this.field('cursorStyle').value as WorkspaceSettings['cursorStyle'],
       cursorBlink: this.field<HTMLInputElement>('cursorBlink').checked, sshEditorDefaultOpen: this.field<HTMLInputElement>('sshEditorDefaultOpen').checked,
-      collapsedSnippetAction: this.field('collapsedSnippetAction').value as WorkspaceSettings['collapsedSnippetAction'] };
+      collapsedSnippetAction: this.field('collapsedSnippetAction').value as WorkspaceSettings['collapsedSnippetAction'],
+      sessionTabBar: { showSettings: this.field<HTMLInputElement>('showSettings').checked,
+        showThemeToggle: this.field<HTMLInputElement>('showThemeToggle').checked,
+        showLanguageToggle: this.field<HTMLInputElement>('showLanguageToggle').checked,
+        showSourceLink: this.field<HTMLInputElement>('showSourceLink').checked } };
   }
   private write(settings: Readonly<WorkspaceSettings>): void {
     this.field('fontSize').value = String(settings.fontSize); this.field('cursorStyle').value = settings.cursorStyle;
     this.field<HTMLInputElement>('cursorBlink').checked = settings.cursorBlink;
     this.field<HTMLInputElement>('sshEditorDefaultOpen').checked = settings.sshEditorDefaultOpen;
     this.field('collapsedSnippetAction').value = settings.collapsedSnippetAction;
+    for (const name of Object.keys(settings.sessionTabBar) as (keyof WorkspaceSettings['sessionTabBar'])[]) {
+      this.field<HTMLInputElement>(name).checked = settings.sessionTabBar[name];
+    }
   }
   get dirty(): boolean { return !!this.base && JSON.stringify(this.read()) !== JSON.stringify(this.base.settings); }
   canLeave(): boolean {
@@ -109,7 +122,7 @@ export class SettingsPage {
   private render(): void {
     const { store } = this;
     const remoteChanged = !!this.base && !!store.snapshot && this.base.revision !== store.snapshot.revision;
-    this.form.querySelector('fieldset')!.disabled = !this.base || store.saving;
+    this.form.querySelectorAll('fieldset').forEach((fieldset) => { fieldset.disabled = !this.base || store.saving; });
     this.form.querySelector<HTMLButtonElement>('[type="submit"]')!.disabled = !this.base || !this.dirty || store.loading || store.saving || this.conflict || remoteChanged;
     for (const selector of ['[data-defaults]', '[data-cancel]']) this.root.querySelector<HTMLButtonElement>(selector)!.disabled = !this.base || store.saving;
     this.root.querySelector<HTMLButtonElement>('[data-reload]')!.disabled = store.loading || store.saving;

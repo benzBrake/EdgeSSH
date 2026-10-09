@@ -6,7 +6,7 @@ async function openSettings(page: Page) {
   if (!await page.locator('#session-settings').isVisible()) await page.locator('#session-menu-toggle').click();
   await page.locator('#session-settings').click();
   await expect(page.locator('#settings-page')).toBeVisible();
-  await expect(page.locator('#settings-page fieldset')).toBeEnabled();
+  for (const fieldset of await page.locator('#settings-page fieldset').all()) await expect(fieldset).toBeEnabled();
   return page.locator('#settings-page');
 }
 
@@ -24,7 +24,7 @@ test('设置手动保存、恢复默认和取消修改，适配主题语言及�
   expect(settingsState.writes).toBe(0);
   await settings.getByRole('button', { name: '保存', exact: true }).click();
   await expect(settings.getByRole('status')).toHaveText('已保存');
-  expect(settingsState.snapshot.settings).toEqual({ fontSize: 18, cursorStyle: 'bar', cursorBlink: false, sshEditorDefaultOpen: false, collapsedSnippetAction: 'terminal' });
+  expect(settingsState.snapshot.settings).toEqual({ ...DEFAULT_SETTINGS, fontSize: 18, cursorStyle: 'bar', cursorBlink: false, sshEditorDefaultOpen: false, collapsedSnippetAction: 'terminal' });
   await settings.getByRole('button', { name: '恢复默认' }).click();
   await expect(settings.getByLabel('终端字号')).toHaveValue('13');
   expect(settingsState.writes).toBe(1);
@@ -41,10 +41,61 @@ test('设置手动保存、恢复默认和取消修改，适配主题语言及�
   await page.locator('[data-language-choice="en"]').click();
   await expect(settings.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   await expect(settings.getByLabel('Terminal font size')).toHaveValue('18');
+  await expect(settings.getByRole('group', { name: 'Session tab bar' })).toBeVisible();
+  await expect(settings.getByLabel('Show settings button')).toBeChecked();
   await expect(settings.locator('[name="cursorStyle"] option:checked')).toHaveText('Bar');
   await page.reload();
   await openSettings(page);
   await expect(settings.getByLabel('Terminal font size')).toHaveValue('18');
+});
+
+test('标签栏按钮分别保存显示偏好，退出始终可用，隐藏设置后可从主页恢复', async ({ page }) => {
+  const { settingsState } = await fileFixture(page, { workbench: 'none' });
+  const settings = await openSettings(page);
+  const buttons = [
+    { name: '显示设置按钮', selector: '#session-settings' },
+    { name: '显示主题切换按钮', selector: '#theme-toggle' },
+    { name: '显示语言切换按钮', selector: '#session-language-toggle' },
+    { name: '显示源代码仓库按钮', selector: '#session-button-group .home-github' },
+  ];
+  for (const [index, button] of buttons.entries()) {
+    await settings.getByLabel(button.name, { exact: true }).uncheck();
+    await expect(page.locator(button.selector)).toHaveJSProperty('hidden', false);
+    await settings.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(settings.getByRole('status')).toHaveText('已保存');
+    for (const [otherIndex, other] of buttons.entries()) {
+      await expect(page.locator(other.selector)).toHaveJSProperty('hidden', otherIndex <= index);
+    }
+  }
+  expect(settingsState.writes).toBe(4);
+  await page.reload();
+  await page.locator('#rail-settings').click();
+  await expect(settings).toBeVisible();
+  for (const button of buttons) {
+    await expect(settings.getByLabel(button.name, { exact: true })).not.toBeChecked();
+    await expect(page.locator(button.selector)).toHaveJSProperty('hidden', true);
+  }
+  if (page.viewportSize()!.width <= 600) {
+    await page.locator('#session-menu-toggle').click();
+    await expect(page.locator('#account-action')).toBeFocused();
+  }
+  await expect(page.locator('#account-action')).toBeVisible();
+  await expect(page.locator('#account-logout-icon')).toBeVisible();
+  for (const button of buttons) await expect(page.locator(button.selector)).toBeHidden();
+  await settings.getByRole('button', { name: '恢复默认' }).click();
+  for (const button of buttons) {
+    await expect(settings.getByLabel(button.name, { exact: true })).toBeChecked();
+    await expect(page.locator(button.selector)).toHaveJSProperty('hidden', true);
+  }
+  await settings.getByRole('button', { name: '取消修改' }).click();
+  for (const button of buttons) await expect(settings.getByLabel(button.name, { exact: true })).not.toBeChecked();
+  await settings.getByRole('button', { name: '恢复默认' }).click();
+  await settings.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(settings.getByRole('status')).toHaveText('已保存');
+  if (page.viewportSize()!.width <= 600) await page.locator('#session-menu-toggle').click();
+  for (const button of buttons) await expect(page.locator(button.selector)).toBeVisible();
+  await expect(page.locator('#account-action')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test('保存失败和版本冲突保留草稿，重新加载后可明确重试', async ({ page }) => {
@@ -79,7 +130,7 @@ test('设置加载失败可重试，新工作台不使用未确认的默认设�
   await expect(page.locator('.session-tab')).toHaveCount(0);
   settingsState.readError = false;
   await settings.getByRole('button', { name: '重新加载' }).click();
-  await expect(settings.locator('fieldset')).toBeEnabled();
+  for (const fieldset of await settings.locator('fieldset').all()) await expect(fieldset).toBeEnabled();
   await page.locator('#session-new').click();
   await expect(fileSession(page).locator('#connection-panel')).toBeVisible();
   expect(settingsState.writes).toBe(0);

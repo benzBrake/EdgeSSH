@@ -21,6 +21,7 @@ import { createTerminalTools, type TerminalToolsController } from './terminal-to
 import { WebSocketReconnectManager } from './ws-reconnect';
 import { SettingsStore } from './settings-store';
 import { SettingsPage } from './settings-page';
+import { DEFAULT_SETTINGS, type SessionTabBarSettings } from '../../src/accounts/settings-data';
 import type { ReconnectLogEntry } from './ws-reconnect';
 import './style.css';
 
@@ -1029,6 +1030,7 @@ settingsStore.addEventListener('change', () => {
   }
   reportedSettingsError = settingsStore.error;
   const snapshot = settingsStore.snapshot;
+  if (!isSessionFrame) applySessionTabBarSettings(snapshot?.settings.sessionTabBar ?? DEFAULT_SETTINGS.sessionTabBar);
   if (!snapshot) return;
   const { settings } = snapshot;
   const resized = terminal.options.fontSize !== settings.fontSize;
@@ -2707,10 +2709,22 @@ function setSessionMenuOpen(open: boolean, restoreFocus = false): void {
   if (restoreFocus) sessionMenuToggle.focus();
 }
 
+function applySessionTabBarSettings(settings: SessionTabBarSettings): void {
+  element<HTMLButtonElement>('session-settings').hidden = !settings.showSettings;
+  ui.themeToggle.hidden = !settings.showThemeToggle;
+  element<HTMLButtonElement>('session-language-toggle').hidden = !settings.showLanguageToggle;
+  sessionButtonGroup.querySelector<HTMLElement>('.home-github')!.hidden = !settings.showSourceLink;
+  if (!settings.showLanguageToggle) {
+    languageMenu.hidden = true;
+    languageToggles.forEach((toggle) => toggle.setAttribute('aria-expanded', 'false'));
+  }
+  requestAnimationFrame(updateSessionTabOverflow);
+}
+
 sessionMenuToggle.addEventListener('click', () => {
   const open = !sessionButtonGroup.hasAttribute('data-open');
   setSessionMenuOpen(open);
-  if (open) sessionButtonGroup.querySelector<HTMLElement>('button, a')?.focus();
+  if (open) sessionButtonGroup.querySelector<HTMLElement>('button:not([hidden]), a:not([hidden])')?.focus();
 });
 sessionButtonGroup.addEventListener('click', (event) => {
   const action = (event.target as Element).closest<HTMLElement>('button, a');

@@ -6,6 +6,8 @@ html[data-theme='dark'] #dashboard:has(.settings-page:not([hidden])) {
 .settings-page { width: 100%; max-width: 1000px; min-width: 0; margin-inline: auto; padding: 36px 32px; }
 .settings-page fieldset { min-width: 0; margin: 0; padding: 8px 24px 0; border: 1px solid var(--home-line); border-radius: 12px; background: var(--home-surface); }
 .settings-page legend { padding: 0 8px; font-size: 15px; font-weight: 600; }
+.settings-page fieldset + fieldset { margin-top: 24px; }
+.settings-hint { margin: 12px 0 0; color: var(--home-muted); font-size: 12px; line-height: 1.7; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 0; border-bottom: 1px solid var(--home-line); font-size: 14px; }
 .settings-row:last-child { border-bottom: 0; }
 .settings-row > span { min-width: 0; }

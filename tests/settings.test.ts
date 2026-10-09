@@ -65,15 +65,34 @@ test('并发首次保存与过期版本均返回 409，不覆盖已保存设置'
   await assert.rejects(f.request('PUT', { settings: DEFAULT_SETTINGS, revision: 1 }, 'missing'), (error: APIError) => error.status === 409);
 });
 
+test('旧设置补齐标签栏默认值，保存按钮偏好后持久化且保持版本校验', async (context) => {
+  const f = fixture(); context.after(() => f.sqlite.close());
+  const { sessionTabBar, ...legacy } = DEFAULT_SETTINGS;
+  f.sqlite.prepare('INSERT INTO workspace_settings VALUES (?, ?, ?, ?)').run('owner', JSON.stringify(legacy), 3, 123);
+  assert.deepEqual(await f.read(), { settings: DEFAULT_SETTINGS, revision: 3, updatedAt: 123 });
+  assert.equal(f.sqlite.prepare('SELECT settings_json FROM workspace_settings').get()!.settings_json, JSON.stringify(legacy));
+  const settings = { ...DEFAULT_SETTINGS, sessionTabBar: { ...sessionTabBar, showSettings: false, showThemeToggle: false, showLanguageToggle: false, showSourceLink: false } };
+  await f.request('PUT', { settings, revision: 3 });
+  assert.deepEqual((await f.read()).settings, settings);
+  assert.equal((await f.read()).revision, 4);
+  await assert.rejects(f.request('PUT', { settings: DEFAULT_SETTINGS, revision: 3 }), (error: APIError) => error.status === 409);
+  assert.deepEqual(validateSettings(legacy), DEFAULT_SETTINGS);
+  assert.throws(() => validateSettings({ ...legacy, cursorBlink: undefined }));
+});
+
 test('严格拒绝非法设置、版本、字段、请求方法及超长请求', async (context) => {
   const f = fixture(); context.after(() => f.sqlite.close());
   for (const settings of [null, [], {}, { ...DEFAULT_SETTINGS, extra: true }, { ...DEFAULT_SETTINGS, fontSize: '13' },
     { ...DEFAULT_SETTINGS, fontSize: 9 }, { ...DEFAULT_SETTINGS, fontSize: 25 }, { ...DEFAULT_SETTINGS, fontSize: 13.5 },
     { ...DEFAULT_SETTINGS, cursorStyle: 'beam' }, { ...DEFAULT_SETTINGS, cursorBlink: 'false' },
-    { ...DEFAULT_SETTINGS, sshEditorDefaultOpen: 1 }, { ...DEFAULT_SETTINGS, collapsedSnippetAction: 'run' }]) {
+    { ...DEFAULT_SETTINGS, sshEditorDefaultOpen: 1 }, { ...DEFAULT_SETTINGS, collapsedSnippetAction: 'run' },
+    ...[null, [], {}, { ...DEFAULT_SETTINGS.sessionTabBar, showSettings: 'false' },
+      { ...DEFAULT_SETTINGS.sessionTabBar, showLogout: false }, { showSettings: true, showThemeToggle: true, showLanguageToggle: true }]
+      .map(sessionTabBar => ({ ...DEFAULT_SETTINGS, sessionTabBar }))]) {
     assert.throws(() => validateSettings(settings));
     await assert.rejects(f.request('PUT', { settings, revision: 0 }), (error: APIError) => error.status === 400);
   }
+  assert.throws(() => validateSettings({ ...DEFAULT_SETTINGS, sessionTabBar: undefined }));
   for (const revision of [-1, 0.5, '0', null, Number.MAX_SAFE_INTEGER]) await assert.rejects(f.request('PUT', { settings: DEFAULT_SETTINGS, revision }));
   await assert.rejects(f.request('PUT', { settings: DEFAULT_SETTINGS, revision: 0, accountId: 'other' }));
   await assert.rejects(f.request('POST'), (error: APIError) => error.status === 405);
