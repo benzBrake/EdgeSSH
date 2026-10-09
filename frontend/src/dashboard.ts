@@ -481,6 +481,7 @@ export class Dashboard {
 
   setLanguage(language: 'zh-CN' | 'en'): void {
     this.language = language;
+    this.actions.snippets.refreshLanguage();
     const english: Record<string, string> = {
       '总览': 'Overview', '主机': 'Hosts', '文件管理': 'Files', '代码片段': 'Snippets', '端口转发': 'Port forwarding',
       '我的主机': 'My hosts', '安全保存，随处连接。': 'Save securely, connect anywhere.', '添加主机': 'Add host', '新建主机': 'New host', '＋ 新建主机': '+ New host', '＋ 添加主机': '+ Add host',

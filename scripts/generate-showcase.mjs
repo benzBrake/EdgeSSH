@@ -260,7 +260,10 @@ async function generate() {
 
     await page.locator('#command-editor-toggle').click();
     await page.locator('#command-editor-input').fill('cd /srv/edge-api/current\ndocker compose pull\ndocker compose up -d\ncurl -fsS http://127.0.0.1:8080/health');
-    if (await snippetBody.isHidden()) await page.getByRole('button', { name: '展开代码片段' }).click();
+    if (await snippetBody.isHidden()) {
+      await page.locator('#snippet-menu-toggle').click();
+      await page.getByRole('button', { name: '展开浮窗', exact: true }).click();
+    }
     await capture(page, '03-terminal-command-workflow.png');
 
     await page.locator('#process-manager-tab').click();

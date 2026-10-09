@@ -415,9 +415,12 @@ test('会话终端中的管理代码片段可打开管理页并返回工作台',
   await expect(page.locator('.session-tab')).toHaveCount(1);
 
   const session = page.frameLocator('.session-frame-host iframe');
+  await expect(session.locator('#app')).toBeVisible();
+  if (await session.locator('#snippet-panel').isHidden()) {
+    await session.locator('#snippet-menu-toggle').click();
+    await session.getByRole('button', { name: '展开浮窗', exact: true }).click();
+  }
   await expect(session.locator('#snippet-panel')).toBeVisible();
-  const expand = session.getByRole('button', { name: '展开代码片段' });
-  if (await expand.count()) await expand.click();
   await session.getByRole('button', { name: '管理代码片段', exact: true }).click();
   await expect(session.locator('#snippets-page')).toBeVisible();
   await expect(session.getByRole('heading', { name: '代码片段', exact: true })).toBeVisible();
@@ -429,8 +432,7 @@ test('会话终端中的管理代码片段可打开管理页并返回工作台',
   await expect(session.locator('#app')).toBeVisible();
 
   const panelAfterReturn = session.locator('#snippet-panel');
-  const expandAfterReturn = session.getByRole('button', { name: '展开代码片段' });
-  if (await expandAfterReturn.count()) await expandAfterReturn.click();
+  await expect(panelAfterReturn).toBeVisible();
   await panelAfterReturn.getByRole('button', { name: '管理代码片段', exact: true }).click();
   await expect(page.locator('#session-home')).toHaveAttribute('aria-current', 'page');
 

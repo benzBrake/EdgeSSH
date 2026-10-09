@@ -2779,12 +2779,13 @@ async function initialize(): Promise<void> {
       // 片段只进入草稿，尤其多行命令不能通过粘贴意外立即执行。
       const input = document.getElementById('command-editor-input') as HTMLTextAreaElement;
       if (input.value.trim() && input.value !== snippet.command
-        && !confirm(bilingual('替换命令编辑器中的现有内容？', 'Replace the current command draft?'))) return;
+        && !confirm(bilingual('替换命令编辑器中的现有内容？', 'Replace the current command draft?'))) return false;
       input.value = snippet.command;
       input.dispatchEvent(new Event('input'));
       if (document.getElementById('command-editor')!.hidden) document.getElementById('command-editor-toggle')!.click();
       input.focus();
       toast(bilingual('已填入命令编辑器，确认后再发送。', 'Added to the command editor. Review before sending.'), 'info');
+      return true;
     }, () => {
       // 多 Tab 模式下，父页面返回当前会话 Tab；仅 session iframe 内切换自身工作台。
       if (isSessionFrame) {
@@ -2795,7 +2796,7 @@ async function initialize(): Promise<void> {
       } else {
         dashboard?.show();
       }
-    }, () => dashboard?.showSnippets(true), sessionKind === 'sftp' ? true : undefined),
+    }, () => dashboard?.showSnippets(true), sessionKind === 'sftp' ? true : undefined, (message) => toast(message, 'error')),
     refresh: async () => {
       profiles = await loadProfiles();
       renderProfiles();

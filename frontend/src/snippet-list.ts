@@ -15,7 +15,7 @@ export class SnippetList {
   constructor(private readonly store: SnippetStore, private readonly editor: SnippetEditor, private readonly options: SnippetListOptions = {}) {
     this.root.className = `snippet-library${options.compact ? ' compact' : ''}`;
     this.root.innerHTML = `<div class="snippet-toolbar">
-      <label class="snippet-search"><span aria-hidden="true">⌕</span><input type="search" aria-label="搜索代码片段" placeholder="搜索名称或命令"></label>
+      <label class="snippet-search"><span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg></span><input type="search" aria-label="搜索代码片段" placeholder="搜索名称或命令"></label>
       <button type="button" class="snippet-primary" data-new>＋ 新建片段</button>
       <button type="button" data-refresh aria-label="刷新代码片段" title="刷新代码片段">↻</button>
     </div><p class="snippet-status" role="status"></p><div class="snippet-list"></div>`;

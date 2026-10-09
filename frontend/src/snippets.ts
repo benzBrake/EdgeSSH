@@ -7,8 +7,9 @@ import './snippets.css';
 export class Snippets {
   readonly page = document.createElement('section');
   private readonly store = new SnippetStore();
+  private readonly panel: SnippetPanel;
 
-  constructor(container: HTMLElement, use: (snippet: Snippet) => void, openTerminal: () => void, openLibrary: () => void, initiallyCollapsed?: boolean) {
+  constructor(container: HTMLElement, use: (snippet: Snippet) => boolean, openTerminal: () => void, openLibrary: () => void, initiallyCollapsed: boolean | undefined, reportError: (message: string) => void) {
     const editor = new SnippetEditor(this.store);
     this.page.id = 'snippets-page';
     this.page.className = 'snippet-page snippet-surface';
@@ -20,7 +21,7 @@ export class Snippets {
       <button type="button" class="snippet-open-terminal" data-i18n-zh="返回终端" data-i18n-en="Back to terminal">返回终端</button></header>`;
     this.page.querySelector('.snippet-open-terminal')!.addEventListener('click', openTerminal);
     this.page.append(new SnippetList(this.store, editor).root);
-    new SnippetPanel(container, this.store, editor, use, openLibrary, initiallyCollapsed);
+    this.panel = new SnippetPanel(container, this.store, editor, use, openLibrary, initiallyCollapsed, reportError);
   }
 
   show(fromTerminal = false): void {
@@ -30,6 +31,7 @@ export class Snippets {
   }
 
   hide(): void { this.page.hidden = true; }
+  refreshLanguage(): void { this.panel.refreshLanguage(); }
   load(): void { void this.store.load(true); }
   clear(): void { this.store.clear(); }
 }

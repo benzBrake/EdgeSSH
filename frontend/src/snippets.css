@@ -31,9 +31,11 @@ body[data-view='snippets'] { overflow-y: auto; background: var(--home-bg); }
 .snippet-page-heading p { margin: 0; color: var(--snip-muted); font-size: 13px; }
 .snippet-page-heading p:first-child { font: 10px var(--mono); letter-spacing: 1.6px; }
 .snippet-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.snippet-search { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 120px; padding: 0 12px; border: 1px solid var(--snip-border); border-radius: 8px; background: var(--snip-card); }
-.snippet-search > span { color: var(--snip-muted); font-size: 24px; }
-.snippet-surface .snippet-search input { width: 100%; min-width: 0; height: 42px; border: 0; box-shadow: none; background: transparent; color: var(--snip-text); padding: 0; }
+.snippet-search { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 120px; height: 28px; padding: 0 8px; border: 1px solid var(--snip-border); border-radius: 8px; background: var(--snip-card); }
+.snippet-search:hover, .snippet-search:focus-within { border-color: var(--snip-accent); }
+.snippet-search > span { display: flex; align-items: center; justify-content: center; flex: 0 0 16px; height: 16px; color: var(--snip-muted); }
+.snippet-search svg { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.snippet-surface .snippet-search input { width: 100%; min-width: 0; height: 100%; border: 0; outline: none; box-shadow: none; background: transparent; color: var(--snip-text); padding: 0; }
 .snippet-status { font-size: 12px; color: var(--snip-muted); margin: 14px 0; line-height: 1.5; }
 .snippet-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 14px; }
 .snippet-card { min-width: 0; border: 1px solid var(--snip-border); border-radius: 12px; padding: 18px; background: var(--snip-card); }
@@ -47,12 +49,9 @@ body[data-view='snippets'] { overflow-y: auto; background: var(--home-bg); }
 .snippet-empty strong { display: block; color: var(--snip-text); }
 .snippet-empty p { font-size: 13px; line-height: 1.6; }
 /* 浮窗依附完整工作台而非 xterm 区域，避免手机横屏时被展开的命令编辑器挤到不可操作。 */
-.terminal-card:has(> .snippet-panel) { position: relative; }
+.terminal-card:has(.snippet-panel) { position: relative; }
 .snippet-panel { position: absolute; z-index: 5; right: 12px; top: 54px; width: 320px; max-width: calc(100% - 16px); max-height: min(480px, calc(100% - 68px)); border: 1px solid var(--snip-border); border-radius: 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
-.snippet-panel.is-collapsed { width: 186px; }
 .snippet-panel-heading { display: flex; flex-shrink: 0; align-items: center; padding: 6px; border-bottom: 1px solid var(--snip-border); }
-.is-collapsed .snippet-panel-heading { border-bottom: 0; }
-.is-collapsed .snippet-manage { display: none; }
 .snippet-panel button.snippet-drag { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; border: 0; background: transparent; cursor: grab; touch-action: none; user-select: none; text-align: left; }
 .snippet-panel button.snippet-drag:active { cursor: grabbing; }
 .snippet-drag strong { white-space: nowrap; font-size: 13px; }
@@ -62,6 +61,19 @@ body[data-view='snippets'] { overflow-y: auto; background: var(--home-bg); }
 .snippet-manage svg { display: block; width: 18px; height: 18px; margin: auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 #snippet-panel-body { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 12px 12px; scrollbar-width: thin; }
 .snippet-panel-hint { color: var(--snip-muted); font-size: 11px; margin: 12px 0; }
+.snippet-menu-toggle { cursor: pointer; }
+.snippet-menu-toggle:focus-visible { outline: 2px solid #69e6b4; outline-offset: 2px; }
+.snippet-quick-menu { position: absolute; z-index: 25; display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--snip-border); border-radius: 12px; box-shadow: var(--shadow); overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.snippet-quick-menu > * { flex-shrink: 0; }
+.snippet-quick-menu .snippet-search { min-width: 0; flex: none; }
+.snippet-quick-menu .snippet-status { margin: 0; font-size: 11px; }
+.snippet-quick-list { display: grid; grid-auto-rows: max-content; gap: 4px; min-height: min(80px, 100%); flex: 0 1 auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 2px; }
+.snippet-quick-list:empty { min-height: 0; padding: 0; }
+.snippet-surface .snippet-quick-item { display: grid; gap: 2px; min-width: 0; min-height: 44px; padding: 6px 8px; text-align: left; border-color: var(--snip-border); background: var(--snip-card); }
+.snippet-quick-item strong { font-size: 12px; overflow-wrap: anywhere; }
+.snippet-quick-item pre { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin: 0; min-height: 1.5em; overflow: hidden; color: var(--snip-muted); font: 11px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.snippet-quick-actions { display: flex; gap: 6px; border-top: 1px solid var(--snip-border); padding-top: 6px; }
+.snippet-quick-menu .snippet-quick-actions button { flex: 1; min-height: 30px; padding: 4px 6px; font-size: 11px; }
 .compact .snippet-search { flex-basis: 100%; }
 .compact .snippet-toolbar > button[data-new] { flex: 1; }
 .compact .snippet-list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
