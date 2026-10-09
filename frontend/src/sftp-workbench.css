@@ -1,23 +1,23 @@
 .terminal-card.sftp-workbench {
-  grid-template-rows: auto minmax(0, 1fr) 0 42px;
+  grid-template-rows: minmax(0, 1fr) 0 42px;
   background: var(--surface);
   transition: none;
 }
 .terminal-card.sftp-workbench.terminal-open {
-  grid-template-rows: auto minmax(0, 1fr) 8px var(--sftp-terminal-height, 35%);
+  grid-template-rows: minmax(0, 1fr) 8px var(--sftp-terminal-height, 35%);
 }
-.sftp-notice { grid-row: 1; }
-.sftp-workbench > .file-manager { grid-row: 2; }
-.sftp-terminal-divider { grid-row: 3; }
-.sftp-workbench > .terminal-pane { grid-row: 4; }
+.sftp-workbench > .file-manager { grid-row: 1; }
+.sftp-terminal-divider { grid-row: 2; }
+.sftp-workbench > .terminal-pane { grid-row: 3; }
 .sftp-connection-actions { display: flex; align-items: center; gap: 6px; flex: 0 1 auto; flex-wrap: wrap; max-width: 100%; font-family: var(--sans); }
 .sftp-connection-actions button { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 7px; font-size: 11px; white-space: nowrap; }
 #sftp-disconnect { color: var(--danger); }
 .sftp-state { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .sftp-state[data-state='connected'] { color: var(--accent); }
 .sftp-state[data-state='error'] { color: var(--danger); }
-.sftp-notice { margin: 0; padding: 8px 12px; color: var(--muted); background: var(--panel); border-bottom: 1px solid var(--border); overflow-wrap: anywhere; font-size: 12px; }
-.sftp-notice.error { color: var(--danger); }
+#sftp-connection-message { min-width: 0; flex: 1 1 160px; overflow-wrap: anywhere; color: var(--muted); font-family: var(--sans); font-size: 12px; }
+#sftp-connection-message.error { color: var(--danger); }
+.sftp-workbench .file-statusbar:has(#sftp-connection-message:not([hidden])) #file-manager-status { display: none; }
 .sftp-workbench > .file-manager { min-height: 0; height: 100%; border: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
 .sftp-workbench .file-toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; }
 .sftp-workbench .file-actions { width: auto; flex-wrap: wrap; overflow: visible; }

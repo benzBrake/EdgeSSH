@@ -18,7 +18,7 @@ export class SftpWorkbench {
   private readonly terminalToggle: HTMLButtonElement;
   private readonly disconnectButton: HTMLButtonElement;
   private readonly status: HTMLElement;
-  private readonly notice: HTMLElement;
+  private readonly message: HTMLElement;
   private readonly divider: HTMLElement;
   private list: ArboristFileList | undefined;
   private sshState: ConnectionControlState = 'idle';
@@ -55,11 +55,12 @@ export class SftpWorkbench {
     }
     this.disconnectButton = connectionActions.querySelector('#sftp-disconnect')!;
     this.status = connectionActions.querySelector('#sftp-connection-state')!;
-    this.notice = document.createElement('p');
-    this.notice.id = 'files-notice';
-    this.notice.className = 'sftp-notice';
-    this.notice.setAttribute('role', 'status');
-    this.notice.hidden = true;
+    this.message = document.createElement('span');
+    this.message.id = 'sftp-connection-message';
+    this.message.setAttribute('role', 'status');
+    this.message.setAttribute('aria-live', 'polite');
+    this.message.hidden = true;
+    panel.querySelector('.file-statusbar')!.prepend(this.message);
     this.divider = document.createElement('div');
     this.divider.className = 'sftp-terminal-divider';
     this.divider.setAttribute('role', 'separator');
@@ -73,7 +74,7 @@ export class SftpWorkbench {
     panel.setAttribute('role', 'region');
     panel.setAttribute('aria-label', actions.localize('远程文件', 'Remote files'));
     panel.removeAttribute('aria-labelledby');
-    root.prepend(this.notice, panel, this.divider, this.terminalPane);
+    root.prepend(panel, this.divider, this.terminalPane);
     const terminalHeader = this.terminalPane.querySelector('.terminal-toolbar')!;
     const title = document.createElement('strong');
     title.className = 'sftp-terminal-title';
@@ -92,7 +93,7 @@ export class SftpWorkbench {
     this.disconnectButton.addEventListener('click', actions.disconnect);
     this.bindResize();
     const observer = new ResizeObserver(() => { if (this.terminalOpen) this.resizeTerminal(); });
-    for (const target of [root, this.notice, panel.querySelector('.file-toolbar')!, panel.querySelector('.file-statusbar')!]) observer.observe(target);
+    for (const target of [root, panel.querySelector('.file-toolbar')!, panel.querySelector('.file-statusbar')!]) observer.observe(target);
     manager.onConnectionChange((state) => { this.serviceState = state; this.renderConnection(); });
     this.refreshLanguage();
     void this.mountList();
@@ -148,9 +149,9 @@ export class SftpWorkbench {
   }
 
   setMessage(message: string, error = false): void {
-    this.notice.textContent = message;
-    this.notice.classList.toggle('error', error);
-    this.notice.hidden = !message;
+    this.message.textContent = message;
+    this.message.classList.toggle('error', error);
+    this.message.hidden = !message;
   }
 
   setTerminalOpen(open: boolean): void {
@@ -181,7 +182,7 @@ export class SftpWorkbench {
   }
 
   private resizeTerminal(height = this.terminalHeight): void {
-    const available = this.root.clientHeight - (this.notice.hidden ? 0 : this.notice.offsetHeight) - 8;
+    const available = this.root.clientHeight - 8;
     if (available <= 0) return;
     const fileControls = this.panel.querySelector<HTMLElement>('.file-toolbar')!.offsetHeight
       + this.panel.querySelector<HTMLElement>('.file-statusbar')!.offsetHeight;

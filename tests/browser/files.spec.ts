@@ -15,6 +15,7 @@ test('文件管理新建 SFTP 标签，空主机与手机布局', async ({ page 
   await expect(session.locator('.sftp-terminal-title')).toHaveText('SSH 终端');
   await expect(session.locator('#sftp-terminal-collapse')).toHaveAttribute('aria-expanded', 'false');
   await expect(session.locator('.sftp-heading')).toHaveCount(0);
+  await expect(session.locator('#files-notice')).toHaveCount(0);
   await expect(session.locator('#initial-command')).toBeHidden();
   expect(await session.locator('html').evaluate(el => el.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('sftp-empty.png') });
@@ -175,7 +176,9 @@ for (const failure of ['credentials', 'authorization']) {
     await fileFixture(page, { credentialError: failure === 'credentials' });
     if (failure === 'authorization') await page.route('**/api/session', route => route.fulfill({ status: 403, json: { error: '会话授权失败，请重新登录。' } }));
     const session = await connectFiles(page);
-    await expect(session.locator('#files-notice')).toContainText(failure === 'credentials' ? '读取凭据失败' : '会话授权失败');
+    await expect(session.locator('.file-statusbar #sftp-connection-message')).toContainText(failure === 'credentials' ? '读取凭据失败' : '会话授权失败');
+    await expect(session.locator('#sftp-connection-message')).toBeVisible();
+    await expect(session.locator('#file-manager-status')).toBeHidden();
     await expect(session.locator('#sftp-connection-state')).toHaveText('连接失败');
     await expect(session.locator('#file-upload')).toBeDisabled();
     await expect(page.locator('.session-tab-status')).toHaveClass(/error/);
@@ -228,6 +231,8 @@ test('关闭读取凭据中的标签后，迟到结果不会启动会话', async
   await page.route('**/api/hosts/alpha/credentials', async route => { await pending; await route.fulfill({ json: { password: 'test-only' } }); });
   const session = await connectFiles(page);
   await expect(session.locator('#sftp-connection-state')).toHaveText('读取凭据中…');
+  await expect(session.locator('.file-statusbar #sftp-connection-message')).toHaveText('正在读取主机凭据…');
+  await expect(session.locator('#sftp-connection-message')).toBeVisible();
   await expect(session.locator('#sftp-terminal-collapse')).toBeDisabled();
   await page.locator('.session-tab-close').click();
   await expect(page.locator('.session-tab')).toHaveCount(0);
