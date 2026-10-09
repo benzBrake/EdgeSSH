@@ -8,7 +8,7 @@ export class SnippetPanel {
   private readonly toggle: HTMLButtonElement;
   private position?: { x: number; y: number };
 
-  constructor(private readonly container: HTMLElement, store: SnippetStore, editor: SnippetEditor, use: (snippet: Snippet) => void, openLibrary: () => void) {
+  constructor(private readonly container: HTMLElement, store: SnippetStore, editor: SnippetEditor, use: (snippet: Snippet) => void, openLibrary: () => void, initiallyCollapsed = matchMedia('(max-width: 700px)').matches) {
     this.root.id = 'snippet-panel';
     this.root.className = 'snippet-panel snippet-surface';
     this.root.setAttribute('aria-label', '代码片段浮窗');
@@ -27,7 +27,7 @@ export class SnippetPanel {
     container.append(this.root);
     this.toggle.addEventListener('click', () => this.setCollapsed(!this.body.hidden));
     this.root.querySelector('.snippet-manage')!.addEventListener('click', openLibrary);
-    this.setCollapsed(matchMedia('(max-width: 700px)').matches);
+    this.setCollapsed(initiallyCollapsed);
     this.bindDrag();
     // 终端侧栏、全屏和横竖屏切换都会改变可用空间，保持拖动后的标题栏仍可触达。
     const observer = new ResizeObserver(() => this.constrain());

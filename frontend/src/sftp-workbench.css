@@ -1,0 +1,78 @@
+.terminal-card.sftp-workbench {
+  grid-template-rows: auto minmax(0, 1fr) 0 42px;
+  background: var(--surface);
+  transition: none;
+}
+.terminal-card.sftp-workbench.terminal-open {
+  grid-template-rows: auto minmax(0, 1fr) 8px var(--sftp-terminal-height, 35%);
+}
+.sftp-notice { grid-row: 1; }
+.sftp-workbench > .file-manager { grid-row: 2; }
+.sftp-terminal-divider { grid-row: 3; }
+.sftp-workbench > .terminal-pane { grid-row: 4; }
+.sftp-connection-actions { display: flex; align-items: center; gap: 6px; flex: 0 1 auto; flex-wrap: wrap; max-width: 100%; font-family: var(--sans); }
+.sftp-connection-actions button { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 7px; font-size: 11px; white-space: nowrap; }
+.sftp-connection-actions svg { width: 15px; height: 15px; }
+#sftp-disconnect { color: var(--danger); }
+.sftp-state { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.sftp-state[data-state='connected'] { color: var(--accent); }
+.sftp-state[data-state='error'] { color: var(--danger); }
+.sftp-notice { margin: 0; padding: 8px 12px; color: var(--muted); background: var(--panel); border-bottom: 1px solid var(--border); overflow-wrap: anywhere; font-size: 12px; }
+.sftp-notice.error { color: var(--danger); }
+.sftp-workbench > .file-manager { min-height: 0; height: 100%; border: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
+.sftp-workbench .file-toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; }
+.sftp-workbench .file-actions { width: auto; flex-wrap: wrap; overflow: visible; }
+.sftp-workbench .file-path-field input { height: 32px; font-size: 13px; }
+.sftp-workbench .file-path-field { flex-basis: 160px; }
+.sftp-workbench .file-action { min-width: 32px; height: 32px; font-size: 12px; }
+.sftp-workbench .file-action svg { width: 16px; height: 16px; }
+.sftp-workbench .file-action-wide { width: 32px; padding: 0; }
+.sftp-workbench .file-view-controls .file-action { width: 32px; height: 32px; }
+.sftp-workbench .file-manager-state { font-size: 13px; }
+.sftp-workbench .file-statusbar { min-height: 32px; padding: 6px 10px; font-size: 11px; flex-wrap: wrap; }
+.sftp-workbench .file-progress { max-width: 100%; }
+.sftp-workbench .file-progress-cancel { min-height: 28px; font-size: 11px; }
+.sftp-workbench .file-tree-header { height: 36px; }
+.sftp-workbench .file-tree-row { min-height: 30px; font-size: 12px; }
+.sftp-workbench .file-tree-title { font-size: 12px; }
+.sftp-workbench .file-table-wrap:has(.files-list) { overflow: hidden; }
+.sftp-workbench > .terminal-pane { position: relative; min-height: 0; grid-template-rows: 42px minmax(80px, 1fr) auto; overflow-y: auto; }
+.sftp-workbench .snippet-panel { top: 8px; max-height: calc(100% - 16px); }
+.sftp-workbench .command-editor { height: 120px; }
+.sftp-workbench .terminal-toolbar > :is(.resource-metrics, .session-metrics) { display: none; }
+.sftp-workbench:not(.terminal-open) > .terminal-pane { grid-template-rows: 42px; overflow: hidden; --terminal-toolbar: var(--panel); --terminal-control: var(--surface); --terminal-border: var(--border); }
+.sftp-workbench:not(.terminal-open) > .terminal-pane > :not(.terminal-toolbar),
+.sftp-workbench:not(.terminal-open) :is(#clear-terminal, #fullscreen-terminal) { display: none; }
+.sftp-workbench:not(.terminal-open) .terminal-toolbar { border-top: 1px solid var(--border-soft); border-bottom: 0; color: var(--muted); }
+.sftp-workbench:not(.terminal-open) .sftp-terminal-title { color: var(--text); }
+.sftp-workbench:not(.terminal-open) .terminal-actions .toolbar-button { color: var(--muted); }
+.sftp-workbench #sftp-terminal-collapse { width: 32px; height: 32px; padding: 5px; }
+.sftp-workbench #sftp-terminal-collapse svg { width: 20px; height: 20px; }
+.sftp-terminal-title { font-size: 12px; font-weight: 500; color: #b6c6cf; margin-right: auto; }
+.sftp-terminal-divider { background: var(--border-soft); cursor: row-resize; touch-action: none; display: flex; align-items: center; justify-content: center; }
+.sftp-terminal-divider::after { content: ''; width: 36px; height: 3px; border-radius: 3px; background: var(--muted-2); }
+.sftp-workbench > .terminal-pane:fullscreen { width: 100%; height: 100%; background: var(--terminal); }
+@media (max-width: 760px) {
+  .sftp-workbench > .file-manager,
+  .sftp-workbench > .file-manager:has(> .file-tree.is-collapsed) { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'toolbar' 'table' 'status'; }
+  .sftp-workbench .file-tree { display: none; }
+}
+@media (max-width: 600px) {
+  .sftp-connection-actions { margin-left: auto; gap: 5px; }
+  .sftp-connection-actions button { min-height: 40px; }
+  .sftp-connection-actions #sftp-settings span { display: none; }
+  .sftp-workbench #sftp-terminal-collapse { width: 40px; height: 40px; }
+  .sftp-workbench .file-action { min-width: 40px; width: 40px; height: 40px; }
+  .sftp-workbench .file-view-controls .file-action { width: 40px; height: 40px; }
+  .sftp-workbench .file-path-field input { font-size: 16px; height: 40px; }
+  .sftp-workbench .file-action-separator { display: none; }
+  .sftp-workbench .file-path-field { flex-basis: 100%; }
+  .sftp-workbench .file-toolbar { display: flex; flex-wrap: wrap; }
+  .sftp-workbench .file-actions { width: 100%; }
+  .sftp-workbench .file-view-controls { position: absolute; right: 8px; top: 6px; }
+  .sftp-workbench .file-toolbar { position: relative; }
+  .sftp-workbench .file-path-field { margin-right: 48px; }
+  .sftp-workbench .file-statusbar { gap: 4px; }
+  .sftp-workbench .file-progress { flex-basis: 100%; justify-content: flex-start; }
+  .sftp-workbench .file-progress-cancel { min-height: 40px; }
+}

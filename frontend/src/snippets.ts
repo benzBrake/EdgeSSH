@@ -8,7 +8,7 @@ export class Snippets {
   readonly page = document.createElement('section');
   private readonly store = new SnippetStore();
 
-  constructor(container: HTMLElement, use: (snippet: Snippet) => void, openTerminal: () => void, openLibrary: () => void) {
+  constructor(container: HTMLElement, use: (snippet: Snippet) => void, openTerminal: () => void, openLibrary: () => void, initiallyCollapsed?: boolean) {
     const editor = new SnippetEditor(this.store);
     this.page.id = 'snippets-page';
     this.page.className = 'snippet-page snippet-surface';
@@ -20,7 +20,7 @@ export class Snippets {
       <button type="button" class="snippet-open-terminal" data-i18n-zh="返回终端" data-i18n-en="Back to terminal">返回终端</button></header>`;
     this.page.querySelector('.snippet-open-terminal')!.addEventListener('click', openTerminal);
     this.page.append(new SnippetList(this.store, editor).root);
-    new SnippetPanel(container, this.store, editor, use, openLibrary);
+    new SnippetPanel(container, this.store, editor, use, openLibrary, initiallyCollapsed);
   }
 
   show(fromTerminal = false): void {

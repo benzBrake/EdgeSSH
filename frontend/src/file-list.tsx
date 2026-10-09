@@ -36,9 +36,11 @@ function FileList({ snapshot, actions }: { snapshot: FileListSnapshot; actions: 
   const viewport = useRef<HTMLDivElement>(null);
   const tree = useRef<TreeApi<FileListItem>>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [selectedId, setSelectedId] = useState(snapshot.selectedId);
   const [mobile, setMobile] = useState(() => matchMedia('(max-width: 600px)').matches);
   useLayoutEffect(() => {
     const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width <= 0 || entry.contentRect.height <= 0) return;
       setSize({ width: entry.contentRect.width, height: entry.contentRect.height });
     });
     observer.observe(viewport.current!);
@@ -65,11 +67,14 @@ function FileList({ snapshot, actions }: { snapshot: FileListSnapshot; actions: 
       {size.width > 0 && size.height > 0 && <Tree<FileListItem>
         ref={tree} data={snapshot.items} width={size.width} height={size.height}
         rowHeight={mobile ? 48 : 44} indent={0} overscanCount={4}
-        selection={snapshot.selectedId} selectionFollowsFocus disableMultiSelection
+        selection={selectedId} selectionFollowsFocus disableMultiSelection
         disableDrag disableDrop disableEdit disableDeselectOnClick
         aria-label={snapshot.chinese ? '文件列表' : 'File list'}
         renderRow={FileRow}
-        onSelect={(nodes) => actions.select(nodes[0]?.data.index ?? -1)}
+        onSelect={(nodes) => {
+          setSelectedId(nodes[0]?.data.id);
+          actions.select(nodes[0]?.data.index ?? -1);
+        }}
         onActivate={(node) => actions.activate(node.data.index)}>
         {FileNode}
       </Tree>}
@@ -77,7 +82,7 @@ function FileList({ snapshot, actions }: { snapshot: FileListSnapshot; actions: 
   </>;
 }
 
-/** React 只挂在独立文件页内；卸载后把同一会话交还给原生终端表格。 */
+/** SFTP 工作台使用虚拟列表；SSH dock 继续使用原生表格。 */
 export class ArboristFileList implements FileListView {
   private readonly root: Root;
   private revision = 0;

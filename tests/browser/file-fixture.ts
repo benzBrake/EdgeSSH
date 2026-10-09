@@ -1,4 +1,4 @@
-import type { Page, WebSocketRoute } from '@playwright/test';
+import { expect, type Page, type WebSocketRoute } from '@playwright/test';
 
 const fingerprint = `SHA256:${'A'.repeat(43)}`;
 const host = (id: string, name: string, address: string) => ({
@@ -12,8 +12,9 @@ const entry = (name: string, type = 'file', size = 12) => ({
 });
 
 // 只在测试浏览器内模拟 API/协议，不访问真实主机、不增加生产认证绕过。
-export async function fileFixture(page: Page, options: { firstSeen?: boolean; credentialError?: boolean; noHosts?: boolean; holdUpload?: boolean } = {}) {
-  const hosts = options.noHosts ? [] : [host('alpha', 'Tokyo production', '192.0.2.10'), host('beta', 'Singapore backup', '192.0.2.20')];
+export async function fileFixture(page: Page, options: { firstSeen?: boolean; credentialError?: boolean; noHosts?: boolean; holdUpload?: boolean; holdSftp?: boolean; sftpError?: boolean; initialCommand?: string; workbench?: 'ssh' | 'sftp' | 'none' } = {}) {
+  const hosts = options.noHosts ? [] : [host('alpha', 'Tokyo production', '192.0.2.10'), host('beta', 'Singapore backup', '192.0.2.20')]
+    .map(item => ({ ...item, initialCommand: options.initialCommand ?? item.initialCommand }));
   const directories = new Map([
     ['/', [entry('root', 'directory')]],
     ['/root', [entry('backups', 'directory'), entry('deploy', 'directory'), entry('README.md'), entry('nginx.conf', 'file', 2480)]],
@@ -71,7 +72,9 @@ export async function fileFixture(page: Page, options: { firstSeen?: boolean; cr
       const message = JSON.parse(raw);
       calls.push(message);
       const { type, requestId, path } = message;
-      if (type === 'sftp_init') send({ type: 'sftp_ready', cwd: '/root', version: 3 });
+      if (type === 'sftp_init' && !options.holdSftp) send(options.sftpError
+        ? { type: 'sftp_error', message: 'SFTP subsystem unavailable' }
+        : { type: 'sftp_ready', cwd: '/root', version: 3 });
       if (type === 'sftp_list') {
         if (path === '/forbidden') send({ type: 'sftp_error', requestId, message: 'Permission denied' });
         else send({ type: 'sftp_list_result', requestId, path, entries: directories.get(path) ?? [] });
@@ -104,11 +107,20 @@ export async function fileFixture(page: Page, options: { firstSeen?: boolean; cr
     });
   });
   await page.goto('/');
-  await page.locator('#rail-files').click();
+  if (options.workbench === 'ssh') await page.locator('#session-new').click();
+  else if (options.workbench !== 'none') await page.locator('#rail-files').click();
+  if (options.workbench !== 'none') await expect(fileSession(page).locator('#connection-panel')).toHaveAttribute('aria-hidden', 'false');
   return { hosts, calls, sshSockets, sftpSockets, uploaded, directories };
 }
 
 export async function connectFiles(page: Page, id = 'alpha') {
-  await page.locator('#files-host').selectOption(id);
-  await page.locator('#files-connect').click();
+  if (!await page.locator('.session-frame-host iframe').count()) await page.locator('#session-new').click();
+  const session = fileSession(page);
+  if (await session.locator('#connection-panel').getAttribute('aria-hidden') === 'true') await session.locator('#sftp-settings').click();
+  await session.locator(`#profile-list [data-profile-id="${id}"]`).click();
+  return session;
+}
+
+export function fileSession(page: Page) {
+  return page.frameLocator('.session-frame-host iframe:not([hidden])');
 }

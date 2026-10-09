@@ -1,6 +1,5 @@
 import { api, saveHost, removeHost, refreshHostLocation, type CloudHost, type HostInput } from './cloud-api';
 import type { HostGlobe } from './globe';
-import type { FilePage } from './file-page';
 import type { Snippets } from './snippets';
 import { ForwardPage } from './forward-page';
 import { countryFlag } from './flags';
@@ -10,13 +9,13 @@ import './dashboard.css';
 import { generateEd25519KeyPair } from './ssh-keygen';
 
 interface DashboardActions {
-  files: FilePage;
+  openFiles(): void;
   snippets: Snippets;
   refresh(): Promise<CloudHost[]>;
   connect(host: CloudHost): Promise<boolean | void>;
   quickConnect(): void;
   leaveWorkspace(): void;
-  onViewChange?(view: 'dashboard' | 'workspace' | 'files' | 'snippets' | 'forward'): void;
+  onViewChange?(view: 'dashboard' | 'workspace' | 'snippets' | 'forward'): void;
 }
 
 const icons = {
@@ -133,7 +132,6 @@ export class Dashboard {
         </form>
       </dialog>`);
     document.body.prepend(this.root);
-    this.get('.home-layout').append(this.actions.files.root);
     this.get('.home-layout').append(this.actions.snippets.page);
     this.get('.home-layout').append(this.forwarding.root);
     this.dialog = this.get<HTMLDialogElement>('#host-editor-dialog');
@@ -174,15 +172,17 @@ export class Dashboard {
     this.get('#host-search').addEventListener('input', () => this.renderList());
     this.get('#refresh-hosts').addEventListener('click', () => void this.refresh());
     this.get('#rail-overview').addEventListener('click', () => {
-      if (!this.actions.files.confirmLeave()) return;
       if (!this.isHome) this.actions.leaveWorkspace();
       this.show();
     });
-    this.get('#rail-files').addEventListener('click', () => this.showFiles());
+    this.get('#rail-files').addEventListener('click', () => {
+      if (isDemoMode()) { this.notice('演示模式暂不支持文件管理。'); return; }
+      this.actions.openFiles();
+    });
     this.get('#rail-snippets').addEventListener('click', () => this.showSnippets());
     this.get('#rail-forward').addEventListener('click', () => this.showForwarding());
     for (const id of ['#quick-connect', '#bottom-quick']) this.get(id).addEventListener('click', () => {
-      if (this.busy || !this.actions.files.confirmLeave()) return;
+      if (this.busy) return;
       this.actions.leaveWorkspace();
       this.actions.quickConnect();
     });
@@ -232,7 +232,6 @@ export class Dashboard {
 
   setHosts(hosts: CloudHost[]): void {
     this.hosts = hosts;
-    this.actions.files.setHosts(hosts);
     this.forwarding.setHosts(hosts);
     if (this.group && !hosts.some((host) => host.group === this.group)) this.group = '';
     this.renderFilters(); this.renderList();
@@ -251,7 +250,6 @@ export class Dashboard {
 
   show(): void {
     this.forwarding.hide();
-    this.actions.files.hide();
     this.actions.snippets.hide();
     this.isHome = true; this.root.hidden = false;
     this.get('.home-content').hidden = false;
@@ -264,7 +262,6 @@ export class Dashboard {
 
   openWorkspace(): void {
     this.forwarding.hide();
-    this.actions.files.hide();
     this.actions.snippets.hide();
     this.isHome = false; this.root.hidden = true;
     document.getElementById('app')!.hidden = false;
@@ -275,25 +272,9 @@ export class Dashboard {
     this.actions.snippets.load();
   }
 
-  showFiles(): void {
-    if (isDemoMode()) { this.notice('演示模式暂不支持文件管理。'); return; }
-    this.forwarding.hide();
-    this.actions.snippets.hide();
-    this.isHome = false; this.root.hidden = false;
-    this.get('.home-content').hidden = true;
-    document.getElementById('app')!.hidden = true;
-    document.body.dataset.view = 'files';
-    this.actions.onViewChange?.('files');
-    this.selectNavigation('rail-files');
-    this.globe?.setActive(false);
-    this.actions.files.show();
-  }
-
   showSnippets(fromTerminal = false): void {
-    if (!this.actions.files.confirmLeave()) return;
     this.forwarding.hide();
     // 仅切换视图，不结束 SSH；在片段页编辑后可回到同一会话。
-    this.actions.files.hide();
     this.isHome = false; this.root.hidden = false;
     this.get('.home-content').hidden = true;
     document.getElementById('app')!.hidden = true;
@@ -306,8 +287,6 @@ export class Dashboard {
 
   showForwarding(): void {
     if (isDemoMode()) { this.notice('演示模式暂不支持端口转发。'); return; }
-    if (!this.actions.files.confirmLeave()) return;
-    this.actions.files.hide();
     this.actions.snippets.hide();
     this.isHome = false; this.root.hidden = false;
     this.get('.home-content').hidden = true;

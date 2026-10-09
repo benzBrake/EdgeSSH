@@ -50,6 +50,7 @@ export interface SFTPEntry {
 
 /** Listener invoked whenever the FileManager's current working directory changes. */
 export type CwdChangeListener = (cwd: string) => void;
+export type FileServiceState = 'idle' | 'connecting' | 'ready' | 'reconnecting' | 'error';
 
 interface LocalizedText {
   zh: string;
@@ -235,6 +236,8 @@ export class FileManager {
   }>();
   /** Registered cwd-change listeners, notified on every successful cwd mutation. */
   private cwdListeners = new Set<CwdChangeListener>();
+  private connectionState: FileServiceState = 'idle';
+  private connectionListeners = new Set<(state: FileServiceState) => void>();
 
   constructor(options: FileManagerOptions) {
     this.elements = options.elements;
@@ -252,6 +255,7 @@ export class FileManager {
     this.reset();
     this.wantConnection = true;
     this.url = url;
+    this.setConnectionState('connecting');
     let target: URL;
     try {
       target = new URL(url, window.location.href);
@@ -264,6 +268,7 @@ export class FileManager {
       target.hash = '';
     } catch (error) {
       this.showError(this.localize({ zh: '文件传输地址无效。', en: 'The file transfer address is invalid.' }));
+      this.setConnectionState('error');
       throw error;
     }
 
@@ -291,6 +296,7 @@ export class FileManager {
     socket.addEventListener('error', () => {
       if (this.isCurrent(socket, generation)) {
         this.showError(this.localize({ zh: '文件服务连接失败。', en: 'The file service connection failed.' }));
+        this.setConnectionState('error');
       }
     });
     socket.addEventListener('close', (event: CloseEvent) => {
@@ -309,9 +315,11 @@ export class FileManager {
         if (this.wantConnection) {
           this.scheduleReconnect();
         } else {
+          this.setConnectionState('error');
           this.renderDisconnected(true, this.describeClose(event));
         }
       } else {
+        this.setConnectionState('error');
         this.renderDisconnected(true, this.describeClose(event));
       }
     });
@@ -349,11 +357,13 @@ export class FileManager {
     this.entries = [];
     this.selectedIndex = -1;
     this.renderDisconnected();
+    this.setConnectionState('idle');
   }
 
   destroy(): void {
     this.reset();
     this.cwdListeners.clear();
+    this.connectionListeners.clear();
     this.bindings.abort();
   }
 
@@ -438,6 +448,22 @@ export class FileManager {
   onCwdChange(listener: CwdChangeListener): () => void {
     this.cwdListeners.add(listener);
     return () => { this.cwdListeners.delete(listener); };
+  }
+
+  onConnectionChange(listener: (state: FileServiceState) => void): () => void {
+    this.connectionListeners.add(listener);
+    listener(this.connectionState);
+    return () => { this.connectionListeners.delete(listener); };
+  }
+
+  hasActiveTransfer(): boolean {
+    return this.hasTransfer() || this.uploadConfirmationPending;
+  }
+
+  private setConnectionState(state: FileServiceState): void {
+    if (this.connectionState === state) return;
+    this.connectionState = state;
+    for (const listener of this.connectionListeners) listener(state);
   }
 
   async upload(file: File, destination?: string): Promise<void> {
@@ -655,6 +681,7 @@ export class FileManager {
     let cwd: string;
     try { cwd = normalizePath(typeof message.cwd === 'string' ? message.cwd : '/'); } catch { cwd = '/'; }
     this.ready = true;
+    this.setConnectionState('ready');
     this.cwd = cwd;
     this.emitCwdChange(cwd);
     this.homePath = cwd;
@@ -1050,6 +1077,7 @@ export class FileManager {
       this.elements.loading.hidden = true;
     }
     const fallback = this.localize({ zh: '文件操作失败。', en: 'The file operation failed.' });
+    if (!this.ready && !requestId) this.setConnectionState('error');
     const serverMessage = typeof message.message === 'string' && message.message ? message.message : fallback;
     const transfer = requestId === this.uploadState?.requestId
       ? this.uploadState
@@ -1266,6 +1294,7 @@ export class FileManager {
       );
       this.reconnectAttempts = 0;
       this.renderDisconnected(true, { zh: '文件管理重连失败。', en: 'File manager reconnect failed.' });
+      this.setConnectionState('error');
       return;
     }
     const delayIndex = this.reconnectAttempts - 1;
@@ -1279,6 +1308,7 @@ export class FileManager {
       zh: '文件管理连接已断开，正在重连…',
       en: 'File manager disconnected; reconnecting…',
     });
+    this.setConnectionState('reconnecting');
     const attempts = this.reconnectAttempts;
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null;

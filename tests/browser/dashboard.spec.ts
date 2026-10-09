@@ -147,6 +147,40 @@ test('会话栏在无会话和关闭最后一个会话后常驻显示', async ({
   await expectEmptyHome();
 });
 
+test('加号单击新建 SSH，长按与键盘菜单选择 SFTP', async ({ page }) => {
+  await dashboardFixture(page);
+  const add = page.locator('#session-new');
+  await add.click();
+  await expect(page.locator('.session-tab')).toHaveAttribute('data-session-kind', 'ssh');
+  await expect(page.frameLocator('.session-frame-host iframe').getByRole('heading', { name: 'SSH 工作台' })).toBeVisible();
+  await page.locator('.session-tab-close').click();
+  await expect(page.locator('.session-tab')).toHaveCount(0);
+  await add.dispatchEvent('pointerdown', { button: 0, clientX: 100, clientY: 20 });
+  const menu = page.locator('#session-create-menu');
+  await expect(menu).toBeVisible();
+  await add.dispatchEvent('pointerup');
+  await add.dispatchEvent('click');
+  await expect(page.locator('.session-tab')).toHaveCount(0);
+  await menu.getByRole('menuitem', { name: 'SFTP 工作台' }).click();
+  await expect(page.locator('.session-tab')).toHaveAttribute('data-session-kind', 'sftp');
+  await expect(page.frameLocator('.session-frame-host iframe').getByRole('heading', { name: 'SFTP 工作台' })).toBeVisible();
+  await page.locator('.session-tab-close').click();
+  await expect(page.locator('.session-tab')).toHaveCount(0);
+  await add.focus();
+  await add.press('ArrowDown');
+  await expect(menu.getByRole('menuitem', { name: 'SSH 工作台' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(menu.getByRole('menuitem', { name: 'SFTP 工作台' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(add).toBeFocused();
+  await add.press('Shift+F10');
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.session-tab')).toHaveAttribute('data-session-kind', 'sftp');
+});
+
 test('窄屏会话操作收进三道杠菜单', async ({ page }) => {
   await page.setViewportSize({ width: 600, height: 812 });
   await dashboardFixture(page);
@@ -287,9 +321,10 @@ test('进入工作台后顶栏导航不重叠或产生横向溢出', async ({ pa
   await expect(page.locator('body[data-view="workspace"]')).toBeVisible();
 
   const layout = await page.evaluate(() => {
-    const topbar = document.querySelector<HTMLElement>('.topbar')!;
-    const actions = document.querySelector<HTMLElement>('.topbar-actions')!;
-    const buttons = [...document.querySelectorAll<HTMLElement>('.topbar-actions .home-back')];
+    const topbar = document.querySelector<HTMLElement>('#session-tabs')!;
+    const actions = document.querySelector<HTMLElement>('#session-button-group')!;
+    const buttons = [...topbar.children].filter((element): element is HTMLElement =>
+      element instanceof HTMLElement && getComputedStyle(element).position !== 'absolute' && element.getBoundingClientRect().width > 0);
     const rects = buttons.map((button) => button.getBoundingClientRect());
     return {
       bodyWidth: document.body.scrollWidth,

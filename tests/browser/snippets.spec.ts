@@ -1,9 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 import { DEFAULT_SNIPPETS, type Snippet } from '../../src/accounts/snippet-data';
-import { connectFiles, fileFixture } from './file-fixture';
+import { connectFiles, fileFixture, fileSession } from './file-fixture';
 
 async function fixture(page: Page) {
-  const files = await fileFixture(page);
+  const files = await fileFixture(page, { workbench: 'none', initialCommand: '' });
   let items: Snippet[] = DEFAULT_SNIPPETS.map((item) => ({ ...item, id: crypto.randomUUID(), updatedAt: Date.now() }));
   await page.route('**/api/snippets**', async (route) => {
     const request = route.request();
@@ -53,18 +53,18 @@ test('主页片段库支持十条默认命令、搜索、新建、多行编辑�
 test('终端浮窗折叠、拖动与键盘复位；填入草稿而不执行，编辑与管理页同步', async ({ page }, testInfo) => {
   const files = await fixture(page);
   await connectFiles(page);
-  await page.locator('#files-terminal').click();
-  const panel = page.locator('#snippet-panel');
+  const session = fileSession(page);
+  const panel = session.locator('#snippet-panel');
   const expand = panel.getByRole('button', { name: '展开代码片段' });
   if (await expand.count()) await expand.click();
   await expect(panel.locator('.snippet-card')).toHaveCount(10);
   await panel.getByRole('button', { name: '使用 查看磁盘空间', exact: true }).click();
-  await expect(page.locator('#command-editor-input')).toHaveValue('df -h');
+  await expect(session.locator('#command-editor-input')).toHaveValue('df -h');
   expect(files.calls.filter((call) => call.type === 'input')).toHaveLength(0);
-  await page.locator('#command-editor-send').click();
+  await session.locator('#command-editor-send').click();
   await expect.poll(() => files.calls.filter((call) => call.type === 'input').at(-1)?.data).toBe('df -h\r');
   if (await panel.getByRole('button', { name: '收起代码片段' }).count()) await panel.getByRole('button', { name: '收起代码片段' }).click();
-  await expect(page.locator('#snippet-panel-body')).toBeHidden();
+  await expect(session.locator('#snippet-panel-body')).toBeHidden();
   const handle = panel.getByRole('button', { name: '移动代码片段窗口' });
   const before = (await panel.boundingBox())!;
   await handle.focus();
@@ -82,16 +82,14 @@ test('终端浮窗折叠、拖动与键盘复位；填入草稿而不执行，�
   }
   await panel.getByRole('button', { name: '展开代码片段' }).click();
   await panel.getByRole('button', { name: '编辑 查看磁盘空间', exact: true }).click();
-  await page.getByRole('dialog').getByLabel('名称').fill('磁盘概况');
-  await page.getByRole('button', { name: '保存片段', exact: true }).click();
+  await session.getByRole('dialog').getByLabel('名称').fill('磁盘概况');
+  await session.getByRole('button', { name: '保存片段', exact: true }).click();
   await panel.locator('.snippet-manage').evaluate((element) => (element as HTMLButtonElement).click());
-  await expect(page.locator('#snippets-page').getByRole('heading', { name: '磁盘概况', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '返回终端', exact: true }).click();
+  await expect(session.locator('#snippets-page').getByRole('heading', { name: '磁盘概况', exact: true })).toBeVisible();
+  await session.getByRole('button', { name: '返回终端', exact: true }).click();
   expect(files.calls.filter((call) => call.type === 'connect')).toHaveLength(1);
-  await page.locator('#rail-files').click();
-  await page.locator('#files-terminal').click();
-  await expect(page.locator('#snippet-panel')).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(session.locator('#snippet-panel')).toBeVisible();
+  expect(await session.locator('body').evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('snippet-terminal.png'), fullPage: true });
 });
 
@@ -124,37 +122,35 @@ test('加载与保存错误可重试，不丢失草稿；空列表不补回默�
 test('多行片段保留换行且不直接发送；取消覆盖保留旧草稿，登出清空片段', async ({ page }) => {
   const files = await fixture(page);
   await connectFiles(page);
-  await page.locator('#files-terminal').click();
-  const panel = page.locator('#snippet-panel');
+  const session = fileSession(page);
+  const panel = session.locator('#snippet-panel');
   await expect(panel).toBeVisible();
   const expandPanel = panel.getByRole('button', { name: '展开代码片段' });
   if (await expandPanel.count()) await expandPanel.click();
   await panel.locator('.snippet-manage').evaluate((element) => (element as HTMLButtonElement).click());
-  await page.locator('#snippets-page').getByRole('button', { name: '＋ 新建片段' }).click();
-  await page.getByRole('dialog').getByLabel('名称').fill('多行脚本');
-  await page.getByRole('dialog').getByLabel('命令', { exact: true }).fill('echo a\n# 注释\necho b');
-  await page.getByRole('button', { name: '保存片段', exact: true }).click();
-  await page.getByRole('button', { name: '返回终端', exact: true }).click();
-  await page.locator('#rail-files').click();
-  await page.locator('#files-terminal').click();
+  await session.locator('#snippets-page').getByRole('button', { name: '＋ 新建片段' }).click();
+  await session.getByRole('dialog').getByLabel('名称').fill('多行脚本');
+  await session.getByRole('dialog').getByLabel('命令', { exact: true }).fill('echo a\n# 注释\necho b');
+  await session.getByRole('button', { name: '保存片段', exact: true }).click();
+  await session.getByRole('button', { name: '返回终端', exact: true }).click();
   if (await panel.getByRole('button', { name: '展开代码片段' }).count()) await panel.getByRole('button', { name: '展开代码片段' }).click();
   await panel.getByRole('button', { name: '使用 多行脚本', exact: true }).click();
-  await expect(page.locator('#command-editor-input')).toHaveValue('echo a\n# 注释\necho b');
+  await expect(session.locator('#command-editor-input')).toHaveValue('echo a\n# 注释\necho b');
   if (await panel.getByRole('button', { name: '展开代码片段' }).count()) await panel.getByRole('button', { name: '展开代码片段' }).click();
   page.once('dialog', (dialog) => dialog.dismiss());
   await panel.getByRole('button', { name: '使用 查看当前目录', exact: true }).click();
-  await expect(page.locator('#command-editor-input')).toHaveValue('echo a\n# 注释\necho b');
+  await expect(session.locator('#command-editor-input')).toHaveValue('echo a\n# 注释\necho b');
   expect(files.calls.filter((call) => call.type === 'input')).toHaveLength(0);
-  await page.evaluate(() => window.dispatchEvent(new Event('auth-required')));
-  await expect(page.locator('#snippet-panel .snippet-card')).toHaveCount(0);
-  await expect(page.locator('#snippets-page .snippet-card')).toHaveCount(0);
+  await session.locator('body').evaluate(() => window.dispatchEvent(new Event('auth-required')));
+  await expect(session.locator('#snippet-panel .snippet-card')).toHaveCount(0);
+  await expect(session.locator('#snippets-page .snippet-card')).toHaveCount(0);
 });
 
 test('浮窗在调整尺寸后仍可触达，并适配浅色及减少动态效果', async ({ page }, testInfo) => {
   await fixture(page);
   await connectFiles(page);
-  await page.locator('#files-terminal').click();
-  const panel = page.locator('#snippet-panel');
+  const session = fileSession(page);
+  const panel = session.locator('#snippet-panel');
   const initiallyCollapsed = testInfo.project.name === 'mobile';
   if (initiallyCollapsed) await expect(panel.locator('#snippet-panel-body')).toBeHidden();
   else await expect(panel.locator('#snippet-panel-body')).toBeVisible();
@@ -163,8 +159,8 @@ test('浮窗在调整尺寸后仍可触达，并适配浅色及减少动态效�
   for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowDown');
   await page.setViewportSize({ width: 667, height: 375 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
-  const stage = (await page.locator('#terminal-card').boundingBox())!;
+  await session.locator('body').evaluate(() => { document.documentElement.dataset.theme = 'light'; });
+  const stage = (await session.locator('#terminal-card').boundingBox())!;
   const box = (await panel.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(stage.x);
   expect(box.x + box.width).toBeLessThanOrEqual(stage.x + stage.width + 1);

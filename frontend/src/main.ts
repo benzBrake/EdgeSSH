@@ -1,12 +1,13 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { createElement, Maximize, Menu, Minimize, Server } from 'lucide';
+import { createElement, Maximize, Menu, Minimize, Server, FolderOpen, Terminal as TerminalIcon } from 'lucide';
 import { historyKey, historyLabel } from './history';
 import { listHosts, hostCredentials, saveHost, removeHost, updateHostSystem, type CloudHost, type Credentials, type HostSystemInfo } from './cloud-api';
 import { Dashboard } from './dashboard';
 import { systemIcon } from './os-icons';
-import { FilePage } from './file-page';
+import { SftpWorkbench } from './sftp-workbench';
+import { bindSessionCreateMenu, type SessionKind } from './session-create-menu';
 import { Snippets } from './snippets';
 import { resolveConnectionControl, resolveConnectionPanel } from './ui-state';
 import { classifyHostKey, SSH_FINGERPRINT_RE, type HostKeyPrompt } from './host-key';
@@ -332,8 +333,10 @@ const ui = {
 };
 
 const isSessionFrame = new URLSearchParams(location.search).get('sessionFrame') === '1';
+const sessionKind: SessionKind = isSessionFrame && new URLSearchParams(location.search).get('sessionKind') === 'sftp' ? 'sftp' : 'ssh';
 const embeddedSessionId = new URLSearchParams(location.search).get('sessionId') ?? '';
 if (isSessionFrame) document.body.dataset.sessionFrame = 'true';
+document.body.dataset.sessionKind = sessionKind;
 const sessionUI = {
   root: element<HTMLElement>('session-tabs'),
   list: element<HTMLElement>('session-tab-list'),
@@ -405,6 +408,7 @@ function applyLanguage(language: Language, persist = false): void {
     }
   }
   if (fileManager) fileManager.setLanguage();
+  sftpWorkbench?.refreshLanguage();
   if (fileTree) fileTree.setLanguage();
   if (processManager) processManager.setLanguage();
   dashboard?.setLanguage(language);
@@ -421,7 +425,7 @@ let profiles: SavedProfile[] = [];
 let temporaryProfiles: TemporaryProfile[] = [];
 let connectionPanelTab: 'saved' | 'temporary' = 'saved';
 let dashboard: Dashboard | undefined;
-let filePage: FilePage | undefined;
+let sftpWorkbench: SftpWorkbench | undefined;
 let hostKeys: Record<string, string> = {};
 let socket: WebSocket | null = null;
 let connectionState: ConnectionState = 'idle';
@@ -467,7 +471,9 @@ let demoInput = '';
 interface EmbeddedSession {
   id: string;
   label: string;
-  fixedLabel: boolean;
+  kind: SessionKind;
+  initialized: boolean;
+  closing: boolean;
   iframe: HTMLIFrameElement;
   state: ConnectionState;
 }
@@ -524,11 +530,13 @@ function renderEmbeddedSessionTabs(): void {
     const tab = document.createElement('div');
     tab.className = 'session-tab';
     tab.dataset.sessionId = session.id;
+    tab.dataset.sessionKind = session.kind;
     tab.setAttribute('role', 'tab');
     tab.tabIndex = 0;
     tab.setAttribute('aria-selected', String(!sessionHomeSelected && session.id === activeEmbeddedSessionId));
     tab.setAttribute('aria-controls', `session-frame-${session.id}`);
-    tab.title = session.label;
+    tab.title = `${session.kind.toUpperCase()} · ${session.label}`;
+    tab.setAttribute('aria-label', tab.title);
     const copy = document.createElement('span');
     copy.className = 'session-tab-copy';
     const status = document.createElement('i');
@@ -536,11 +544,13 @@ function renderEmbeddedSessionTabs(): void {
     status.setAttribute('aria-hidden', 'true');
     const label = document.createElement('span');
     label.className = 'session-tab-label';
-    label.textContent = session.label;
-    copy.append(status, label);
+    label.textContent = session.kind === 'sftp' ? `SFTP · ${session.label}` : session.label;
+    const kindIcon = createElement(session.kind === 'sftp' ? FolderOpen : TerminalIcon, { 'aria-hidden': 'true', class: 'session-tab-kind' });
+    copy.append(status, kindIcon, label);
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'session-tab-close';
+    close.disabled = session.closing;
     close.textContent = '\u00d7';
     close.setAttribute('aria-label', bilingual(`关闭 ${session.label}`, `Close ${session.label}`));
     close.addEventListener('click', (event) => {
@@ -582,8 +592,16 @@ function activateEmbeddedSession(id: string | null): void {
 
 function closeEmbeddedSession(id: string): void {
   const session = embeddedSessions.get(id);
-  if (!session) return;
+  if (!session || session.closing) return;
+  if (!session.initialized) { removeEmbeddedSession(id); return; }
+  session.closing = true;
   session.iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'session-close' }, location.origin);
+  renderEmbeddedSessionTabs();
+}
+
+function removeEmbeddedSession(id: string): void {
+  const session = embeddedSessions.get(id);
+  if (!session) return;
   session.iframe.remove();
   embeddedSessions.delete(id);
   if (activeEmbeddedSessionId === id) {
@@ -592,10 +610,15 @@ function closeEmbeddedSession(id: string): void {
   } else renderEmbeddedSessionTabs();
 }
 
-function openEmbeddedSession(profile?: SavedProfile, connectionTab: 'saved' | 'temporary' = 'saved'): void {
+function openEmbeddedSession({ kind = 'ssh', profile, connectionTab = 'saved' }: { kind?: SessionKind; profile?: SavedProfile; connectionTab?: 'saved' | 'temporary' } = {}): void {
   if (isSessionFrame) return;
+  if (kind === 'sftp' && isDemoMode()) {
+    toast(bilingual('演示模式暂不支持文件管理。', 'File management is unavailable in demo mode.'), 'info');
+    return;
+  }
   const id = crypto.randomUUID();
-  const label = profile?.name || (profile ? targetLabel(profile.host, profile.port, profile.username) : bilingual('临时连接', 'Temporary session'));
+  const label = profile?.name || (profile ? targetLabel(profile.host, profile.port, profile.username)
+    : kind === 'sftp' ? bilingual('文件管理', 'Files') : bilingual('临时连接', 'Temporary session'));
   const iframe = document.createElement('iframe');
   iframe.id = `session-frame-${id}`;
   iframe.title = label;
@@ -604,6 +627,7 @@ function openEmbeddedSession(profile?: SavedProfile, connectionTab: 'saved' | 't
   url.hash = '';
   url.searchParams.set('sessionFrame', '1');
   url.searchParams.set('sessionId', id);
+  url.searchParams.set('sessionKind', kind);
   if (connectionTab === 'temporary') url.searchParams.set('connectionTab', connectionTab);
   if (profile) url.searchParams.set('profileId', profile.id);
   if (new URLSearchParams(location.search).get('demo') === '1') url.searchParams.set('demo', '1');
@@ -613,7 +637,7 @@ function openEmbeddedSession(profile?: SavedProfile, connectionTab: 'saved' | 't
     iframe.contentWindow?.postMessage({ source: 'edgessh-parent', type: 'theme', theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark' }, location.origin);
   });
   sessionUI.frameHost.append(iframe);
-  embeddedSessions.set(id, { id, label, fixedLabel: Boolean(profile), iframe, state: 'connecting' });
+  embeddedSessions.set(id, { id, label, kind, initialized: false, closing: false, iframe, state: 'idle' });
   activeEmbeddedSessionId = id;
   activateEmbeddedSession(id);
   renderEmbeddedSessionTabs();
@@ -643,12 +667,19 @@ if (!isSessionFrame) {
   }, { passive: false });
   window.addEventListener('message' , (event) => {
     if (event.origin !== location.origin || !event.data || event.data.source !== 'edgessh-session') return;
-    const message = event.data as { sessionId?: string; type?: string; state?: ConnectionState; label?: string; view?: string };
+    const message = event.data as { sessionId?: string; type?: string; state?: ConnectionState; label?: string; view?: string; accepted?: boolean };
     if (!message.sessionId || !message.type) return;
     const session = embeddedSessions.get(message.sessionId);
     if (!session || event.source !== session.iframe.contentWindow) return;
+    session.initialized = true;
+    if (message.type === 'open-files') { openEmbeddedSession({ kind: 'sftp' }); return; }
     if (message.type === 'close-empty') {
       closeEmbeddedSession(message.sessionId);
+      return;
+    }
+    if (message.type === 'close-result' && session.closing) {
+      if (message.accepted) removeEmbeddedSession(message.sessionId);
+      else { session.closing = false; renderEmbeddedSessionTabs(); }
       return;
     }
     if (message.type === 'view') {
@@ -658,18 +689,32 @@ if (!isSessionFrame) {
       return;
     }
     if (message.type === 'state' && message.state) session.state = message.state;
-    if (message.type === 'label' && message.label && !session.fixedLabel) {
+    if (message.type === 'label' && message.label) {
       session.label = message.label;
       session.iframe.title = message.label;
     }
     renderEmbeddedSessionTabs();
   });
   sessionUI.home.addEventListener('click', () => activateEmbeddedSession(null));
-  sessionUI.create.addEventListener('click', () => openEmbeddedSession());
+  const createMenu = element<HTMLElement>('session-create-menu');
+  bindSessionCreateMenu(sessionUI.create, createMenu, (kind) => openEmbeddedSession({ kind }));
+  const positionCreateMenu = () => {
+    const x = sessionUI.create.getBoundingClientRect().left;
+    createMenu.style.left = `${Math.max(6, Math.min(x, window.innerWidth - 186))}px`;
+  };
+  new ResizeObserver(positionCreateMenu).observe(sessionUI.root);
+  sessionUI.create.addEventListener('pointerdown', positionCreateMenu);
+  sessionUI.create.addEventListener('keydown', positionCreateMenu);
 } else {
   window.addEventListener('message', (event) => {
     if (event.origin !== location.origin || event.source !== window.parent || event.data?.source !== 'edgessh-parent') return;
     if (event.data.type === 'session-focus') dashboard?.openWorkspace();
+    if (event.data.type === 'session-close') {
+      if (!confirmEndSession()) { postSessionEvent('close-result', { accepted: false }); return; }
+      disconnect();
+      clearCredentials();
+      postSessionEvent('close-result', { accepted: true });
+    }
     if (event.data.type === 'language' && (event.data.language === 'zh-CN' || event.data.language === 'en')) applyLanguage(event.data.language);
     if (event.data.type === 'theme' && (event.data.theme === 'light' || event.data.theme === 'dark')) document.documentElement.dataset.theme = event.data.theme;
   });
@@ -959,6 +1004,7 @@ fileTree = new FileTree({
   onError: (message) => event(message, 'sftp', true),
   initialRoot: '/',
 });
+fileManager.onConnectionChange((state) => fileTree.setReady(state === 'ready'));
 fileManager.onCwdChange((cwd) => fileTree.setCwd(cwd));
 processManager = new ProcessManager({
   elements: collectProcessManagerElements(),
@@ -1470,7 +1516,7 @@ function showFormError(message: string, alternate?: string): void {
   currentFormError = messageTranslation(message, alternate);
   ui.formError.textContent = localize(currentFormError);
   ui.formError.hidden = false;
-  if (document.body.dataset.view === 'files') filePage?.setMessage(localize(currentFormError), true);
+  sftpWorkbench?.setMessage(localize(currentFormError), true);
 }
 
 function toast(message: string, kind: 'info' | 'error' = 'info'): void {
@@ -1485,7 +1531,7 @@ function updateConnectionStatus(message: LocalizedMessage): void {
   currentSessionSubtitle = message;
   const text = localize(message);
   ui.sessionSubtitle.textContent = text;
-  filePage?.setMessage(text);
+  if (connectionState !== 'connected') sftpWorkbench?.setMessage(text);
   postSessionEvent('status', { message: text });
   if (connectionState === 'connecting') {
     const btnSpan = ui.connect.querySelector<HTMLElement>('span:last-child');
@@ -1496,7 +1542,7 @@ function updateConnectionStatus(message: LocalizedMessage): void {
 function setState(state: ConnectionState, label?: string): void {
   connectionState = state;
   ui.fullscreenFiles.disabled = state !== 'connected';
-  filePage?.setConnection(state, profiles.find((profile) => passwordContext(profile) === currentTargetKey)?.id, currentTargetLabel);
+  sftpWorkbench?.setConnection(state, historyPasswordLoading);
   const stateLabel = label ?? ({
     idle: bilingual('离线', 'Offline'),
     connecting: bilingual('连接中', 'Connecting'),
@@ -1523,7 +1569,7 @@ function setState(state: ConnectionState, label?: string): void {
   ui.connect.setAttribute('aria-label', controlLabel);
   ui.connect.title = currentSessionId || controlLabel;
   terminalTools?.setConnected(state === 'connected');
-  postSessionEvent('state', { state, label: currentTargetLabel });
+  if (!sftpWorkbench) postSessionEvent('state', { state, label: currentTargetLabel });
   if (currentTargetLabel) postSessionEvent('label', { label: currentTargetLabel });
 }
 
@@ -1597,6 +1643,8 @@ function closeConnectionPanel(): void {
     && Boolean(embeddedSessionId)
     && window.parent !== window
     && !query.get('profileId')
+    && !currentTargetKey
+    && !historyPasswordLoading
     && connectionState === 'idle';
   if (temporaryDraft) {
     setPanelOpen(false);
@@ -1654,7 +1702,7 @@ function markReady(message = bilingual('交互式 Shell 已就绪', 'Interactive
   }
   startTimers();
   updateConnectionStatus(messageTranslation(message));
-  filePage?.setMessage('');
+  sftpWorkbench?.setMessage('');
   event(message, 'ready');
   if (currentInitialCommand && !initialCommandSent) {
     initialCommandSent = true;
@@ -1666,7 +1714,7 @@ function markReady(message = bilingual('交互式 Shell 已就绪', 'Interactive
       sendTerminalData(`${command}\r`);
     }, 120);
   }
-  if (document.body.dataset.view === 'workspace') terminal.focus();
+  if (document.body.dataset.view === 'workspace' && (!sftpWorkbench || sftpWorkbench.isTerminalOpen)) terminal.focus();
 }
 
 function sendHostKeyDecision(accept: boolean): void {
@@ -1695,6 +1743,7 @@ type WorkspaceTab = 'files' | 'processes' | 'log';
 let activeWorkspaceTab: WorkspaceTab | null = null;
 
 function setWorkspaceTab(tab: WorkspaceTab | null, focus = false, rovingTab = tab ?? activeWorkspaceTab ?? 'files'): void {
+  if (sessionKind === 'sftp') return;
   const filesActive = tab === 'files';
   const processesActive = tab === 'processes';
   const logActive = tab === 'log';
@@ -1792,7 +1841,6 @@ function handleServerMessage(message: ServerMessage): void {
       event(bilingual('无法打开文件管理连接。', 'Could not open the file-management connection.'), 'sftp', true);
       return;
     }
-    fileTree.setReady(true);
     event(bilingual('文件管理通道已可用。', 'File management channel is available.'), 'sftp');
     return;
   }
@@ -2081,7 +2129,7 @@ async function connect(): Promise<void> {
     showFormError(validationError);
     return;
   }
-  if (document.body.dataset.view !== 'files') dashboard?.openWorkspace();
+  dashboard?.openWorkspace();
   if (location.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
     showFormError(bilingual('发送 SSH 凭据前必须使用 HTTPS。', 'HTTPS is required before SSH credentials can be sent.'));
     return;
@@ -2108,7 +2156,7 @@ async function connect(): Promise<void> {
   currentRememberedFingerprint = '';
   if (pinnedKey) ui.fingerprint.value = pinnedKey;
   // 文件管理不应在隐藏终端里执行用户的初始命令；保存的主机配置仍保持原样。
-  currentInitialCommand = document.body.dataset.view === 'files' ? '' : ui.initialCommand.value;
+  currentInitialCommand = sessionKind === 'sftp' ? '' : ui.initialCommand.value;
   initialCommandSent = false;
   pendingHostKey = null;
   awaitingHostKeyDecision = false;
@@ -2261,6 +2309,13 @@ async function connect(): Promise<void> {
     toast(message, 'error');
     setState('error');
   }
+}
+
+function confirmEndSession(): boolean {
+  return !fileManager.hasActiveTransfer() || confirm(bilingual(
+    '文件正在传输，关闭或断开会话将取消传输。仍要继续吗？',
+    'A file transfer is in progress. Closing or disconnecting the session will cancel it. Continue?',
+  ));
 }
 
 function disconnect(reason = bilingual('已由用户断开连接', 'Disconnected by user')): void {
@@ -2440,6 +2495,7 @@ for (const radio of ui.form.querySelectorAll<HTMLInputElement>('input[name="auth
 ui.form.addEventListener('submit', (formEvent) => {
   formEvent.preventDefault();
   if (connectionState === 'connecting' || connectionState === 'connected') {
+    if (!confirmEndSession()) return;
     disconnect(connectionState === 'connecting'
       ? bilingual('连接已取消', 'Connection cancelled')
       : bilingual('已由用户断开连接', 'Disconnected by user'));
@@ -2546,8 +2602,9 @@ ui.emptyConnect.addEventListener('click', () => {
 });
 ui.clearTerminal.addEventListener('click', () => terminal.clear());
 ui.fullscreenTerminal.addEventListener('click', async () => {
-  if (document.fullscreenElement === ui.terminalCard) await document.exitFullscreen();
-  else await ui.terminalCard.requestFullscreen();
+  const target = sftpWorkbench?.terminalPane ?? ui.terminalCard;
+  if (document.fullscreenElement === target) await document.exitFullscreen();
+  else await target.requestFullscreen();
 });
 document.addEventListener('fullscreenchange', () => fitTerminal(true));
 ui.fullscreenFiles.append(createElement(Maximize, { 'aria-hidden': 'true' }));
@@ -2696,23 +2753,29 @@ async function initialize(): Promise<void> {
   applyURLParameters();
   // 两个视图共用指纹确认与通知，不能随隐藏的终端容器一起消失。
   document.body.append(ui.hostKeyDialog, ui.toastRegion);
-  filePage = new FilePage(ui.fileManagerPanel, {
-    connect: async (host) => {
-      const loading = applyProfile(host);
-      const selectionGeneration = historyPasswordLoadGeneration;
-      await loading;
-      // 返回总览会作废凭据读取；即使用户立刻回到文件页，也不能启动已经取消的连接。
-      if (selectionGeneration === historyPasswordLoadGeneration && document.body.dataset.view === 'files') await connect();
-    },
-    disconnect: () => disconnect(),
-    openTerminal: () => {
-      dashboard?.openWorkspace();
-      if (connectionState === 'idle' || connectionState === 'error') setPanelOpen(true);
-    },
-  }, fileManager);
+  if (sessionKind === 'sftp') {
+    const title = ui.panel.querySelector<HTMLElement>('.panel-heading h1')!;
+    title.dataset.i18nZh = 'SFTP 工作台';
+    title.dataset.i18nEn = 'SFTP workspace';
+    title.textContent = bilingual('SFTP 工作台', 'SFTP workspace');
+    ui.initialCommand.closest('label')!.hidden = true;
+    sftpWorkbench = new SftpWorkbench(ui.terminalCard, ui.fileManagerPanel, fileManager, {
+      configure: () => { setPanelOpen(true); requestAnimationFrame(() => ui.panelClose.focus()); },
+      disconnect: () => { if (confirmEndSession()) disconnect(); },
+      fitTerminal: () => fitTerminal(true),
+      focusTerminal: () => terminal.focus(),
+      onState: (state) => postSessionEvent('state', { state }),
+      reportError: (message) => event(message, 'sftp', true),
+      localize: bilingual,
+    });
+  }
   dashboard = new Dashboard({
-    files: filePage,
-    snippets: new Snippets(ui.terminalCard, (snippet) => {
+    openFiles: () => {
+      if (isSessionFrame) postSessionEvent('open-files');
+      else openEmbeddedSession({ kind: 'sftp' });
+    },
+    snippets: new Snippets(sftpWorkbench?.terminalPane.querySelector<HTMLElement>('.terminal-stage') ?? ui.terminalCard, (snippet) => {
+      sftpWorkbench?.setTerminalOpen(true);
       // 片段只进入草稿，尤其多行命令不能通过粘贴意外立即执行。
       const input = document.getElementById('command-editor-input') as HTMLTextAreaElement;
       if (input.value.trim() && input.value !== snippet.command
@@ -2726,12 +2789,13 @@ async function initialize(): Promise<void> {
       // 多 Tab 模式下，父页面返回当前会话 Tab；仅 session iframe 内切换自身工作台。
       if (isSessionFrame) {
         dashboard?.openWorkspace();
+        sftpWorkbench?.setTerminalOpen(true);
       } else if (activeEmbeddedSessionId) {
         activateEmbeddedSession(activeEmbeddedSessionId);
       } else {
         dashboard?.show();
       }
-    }, () => dashboard?.showSnippets(true)),
+    }, () => dashboard?.showSnippets(true), sessionKind === 'sftp' ? true : undefined),
     refresh: async () => {
       profiles = await loadProfiles();
       renderProfiles();
@@ -2739,7 +2803,7 @@ async function initialize(): Promise<void> {
     },
     connect: async (host) => {
       if (!isSessionFrame) {
-        openEmbeddedSession(host);
+        openEmbeddedSession({ profile: host });
         return false;
       }
       await applyProfile(host);
@@ -2748,7 +2812,7 @@ async function initialize(): Promise<void> {
     },
     quickConnect: () => {
       if (!isSessionFrame) {
-        openEmbeddedSession(undefined, 'temporary');
+        openEmbeddedSession({ connectionTab: 'temporary' });
         return;
       }
       clearForm();

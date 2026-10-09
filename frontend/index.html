@@ -15,7 +15,7 @@
     <title>EdgeSSH · Private workspace</title>
   </head>
   <body>
-    <nav id="session-tabs" class="session-tabs" aria-label="SSH 会话" data-i18n-aria-label-zh="SSH 会话" data-i18n-aria-label-en="SSH sessions">
+    <nav id="session-tabs" class="session-tabs" aria-label="会话工作台" data-i18n-aria-label-zh="会话工作台" data-i18n-aria-label-en="Session workspaces">
       <a class="home-brand session-brand" href="/" aria-label="EdgeSSH 首页"><span class="brand-chevron">›_</span><span class="brand-wordmark">Edge<span>SSH</span></span></a>
       <button id="session-home" class="session-home" type="button" aria-label="打开主页" data-i18n-aria-label-zh="打开主页" data-i18n-aria-label-en="Open home">
         <span aria-hidden="true">⌂</span><span data-i18n-zh="主页" data-i18n-en="Home">主页</span>
@@ -23,7 +23,11 @@
       <button id="session-scroll-left" class="session-scroll" type="button" aria-label="向左滚动标签" data-i18n-aria-label-zh="向左滚动标签" data-i18n-aria-label-en="Scroll tabs left" hidden><span aria-hidden="true"></span></button>
       <div id="session-tab-list" class="session-tab-list" role="tablist" aria-label="已连接会话" data-i18n-aria-label-zh="已连接会话" data-i18n-aria-label-en="Connected sessions"></div>
       <button id="session-scroll-right" class="session-scroll" type="button" aria-label="向右滚动标签" data-i18n-aria-label-zh="向右滚动标签" data-i18n-aria-label-en="Scroll tabs right" hidden><span aria-hidden="true"></span></button>
-      <button id="session-new" class="session-new" type="button" aria-label="新建 SSH 会话" data-i18n-aria-label-zh="新建 SSH 会话" data-i18n-aria-label-en="New SSH session" title="新建 SSH 会话" data-i18n-title-zh="新建 SSH 会话" data-i18n-title-en="New SSH session">＋</button>
+      <button id="session-new" class="session-new" type="button" aria-label="新建 SSH 会话" data-i18n-aria-label-zh="新建 SSH 会话" data-i18n-aria-label-en="New SSH session" title="单击新建 SSH，长按选择工作台" data-i18n-title-zh="单击新建 SSH，长按选择工作台" data-i18n-title-en="Click for SSH; hold to choose a workspace" aria-haspopup="menu" aria-expanded="false" aria-controls="session-create-menu">＋</button>
+      <div id="session-create-menu" class="session-create-menu" role="menu" hidden>
+        <button type="button" role="menuitem" data-session-kind="ssh" data-i18n-zh="SSH 工作台" data-i18n-en="SSH workspace">SSH 工作台</button>
+        <button type="button" role="menuitem" data-session-kind="sftp" data-i18n-zh="SFTP 工作台" data-i18n-en="SFTP workspace">SFTP 工作台</button>
+      </div>
       <button
         id="session-menu-toggle"
         class="icon-button session-menu-toggle"

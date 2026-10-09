@@ -105,11 +105,11 @@ body {
 
 /* Home pages own their scrolling area so the viewport scrollbar starts below
  * the fixed session bar instead of running underneath it. */
-body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) {
+body:is([data-view='dashboard'], [data-view='snippets'], [data-view='forward']) {
   overflow: hidden;
 }
 
-body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) #dashboard {
+body:is([data-view='dashboard'], [data-view='snippets'], [data-view='forward']) #dashboard {
   height: calc(100dvh - var(--session-tabs-height));
   min-height: 0;
   margin-top: var(--session-tabs-height);
@@ -121,6 +121,11 @@ body[data-view='workspace']:not([data-session-frame='true']) #app {
   height: calc(100% - var(--session-tabs-height));
   margin-top: var(--session-tabs-height);
 }
+
+.session-tab-kind { width: 14px; height: 14px; flex: 0 0 auto; }
+.session-create-menu { position: absolute; z-index: 130; top: calc(var(--session-tabs-height) - 2px); padding: 6px; width: 180px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+.session-create-menu button { display: block; width: 100%; padding: 10px; border: 0; border-radius: 4px; background: transparent; color: inherit; text-align: left; font: 13px var(--sans); }
+.session-create-menu button:hover, .session-create-menu button:focus-visible { background: var(--accent-dim); }
 
 body[data-view='workspace'] .app-shell {
   height: 100%;
@@ -136,7 +141,7 @@ body[data-view='workspace'] .panel-scrim {
 }
 
 /* Light home views align the session bar with the dashboard's white/orange surface tokens. */
-html[data-theme='light'] body:is([data-view='dashboard'], [data-view='files'], [data-view='snippets'], [data-view='forward']) .session-tabs {
+html[data-theme='light'] body:is([data-view='dashboard'], [data-view='snippets'], [data-view='forward']) .session-tabs {
   --panel: var(--home-surface, #ffffff);
   --border: var(--home-line, #e9ecf1);
   --surface-2: var(--home-bg, #fafbfd);
