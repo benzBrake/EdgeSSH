@@ -45,7 +45,7 @@ test('主页片段库支持十条默认命令、搜索、新建、多行编辑�
   await library.getByRole('searchbox').fill('磁盘');
   await expect(library.locator('.snippet-card')).toHaveCount(1);
   await library.getByRole('searchbox').fill('');
-  await library.getByRole('button', { name: '＋ 新建片段' }).click();
+  await library.getByRole('button', { name: '新建片段', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '新建代码片段' });
   await dialog.getByLabel('名称').fill('部署检查 <script>');
   await dialog.getByLabel('命令', { exact: true }).fill('echo first\npwd');
@@ -118,7 +118,7 @@ test('加载与保存错误可重试，不丢失草稿；空列表不补回默�
   await page.unroute('**/api/snippets');
   await library.getByRole('button', { name: '刷新代码片段' }).click();
   await expect(library.locator('.snippet-card')).toHaveCount(10);
-  await library.getByRole('button', { name: '＋ 新建片段' }).click();
+  await library.getByRole('button', { name: '新建片段', exact: true }).click();
   await page.getByRole('dialog').getByLabel('名称').fill('保留草稿');
   await page.getByRole('dialog').getByLabel('命令', { exact: true }).fill('echo safe');
   await page.route('**/api/snippets', (route) => route.fulfill({ status: 500, json: { error: '保存失败，请重试。' } }));
@@ -142,7 +142,7 @@ test('多行片段保留换行且不直接发送；取消覆盖保留旧草稿�
   const panel = session.locator('#snippet-panel');
   await expandPanel(session);
   await panel.locator('.snippet-manage').evaluate((element) => (element as HTMLButtonElement).click());
-  await session.locator('#snippets-page').getByRole('button', { name: '＋ 新建片段' }).click();
+  await session.locator('#snippets-page').getByRole('button', { name: '新建片段', exact: true }).click();
   await session.getByRole('dialog').getByLabel('名称').fill('多行脚本');
   await session.getByRole('dialog').getByLabel('命令', { exact: true }).fill('echo a\n# 注释\necho b');
   await session.getByRole('button', { name: '保存片段', exact: true }).click();
@@ -287,7 +287,7 @@ test('快捷菜单与管理页同步，保留多行命令且登出清空', async
   const menu = session.locator('#snippet-quick-menu');
   await menu.getByRole('button', { name: '管理代码片段', exact: true }).click();
   await expect(menu).toBeHidden();
-  await session.locator('#snippets-page').getByRole('button', { name: '＋ 新建片段' }).click();
+  await session.locator('#snippets-page').getByRole('button', { name: '新建片段', exact: true }).click();
   await session.getByRole('dialog').getByLabel('名称').fill('多行快捷片段 <script>');
   await session.getByRole('dialog').getByLabel('命令', { exact: true }).fill('echo a\n# 注释\necho b');
   await session.getByRole('button', { name: '保存片段', exact: true }).click();

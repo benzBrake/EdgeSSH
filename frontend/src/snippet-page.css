@@ -1,0 +1,80 @@
+/* 管理页独立于终端浮窗的 snippet-surface，尺寸与配色只在此处定义。 */
+body[data-view='snippets'] { overflow-y: auto; background: var(--home-bg); }
+.snippet-page, .snippet-page-dialog {
+  --library-line: #f1d9ca;
+  --library-code: #fff7f2;
+  color: var(--home-ink); background: var(--home-bg); color-scheme: light;
+  font-family: var(--home-font);
+}
+.snippet-page { min-width: 0; width: 100%; max-width: 1450px; padding: 36px 32px; margin-inline: auto; }
+.snippet-page-heading { display: flex; align-items: center; gap: 18px; margin-bottom: 32px; }
+.snippet-page .snippet-symbol, .snippet-page-dialog .snippet-symbol { color: var(--home-accent-hover); font: 700 26px var(--home-mono); white-space: nowrap; }
+.snippet-page-heading > .snippet-symbol { display: grid; place-items: center; flex: 0 0 64px; height: 64px; border: 1px solid var(--library-line); border-radius: 16px; background: var(--home-accent-soft); }
+.snippet-page-heading h1 { margin: 4px 0 8px; font-size: 28px; }
+.snippet-page-heading p { margin: 0; color: var(--home-muted); font-size: 13px; }
+.snippet-page-heading p:first-child { color: var(--home-accent-hover); font: 10px var(--home-mono); letter-spacing: 1.6px; }
+.snippet-page .snippet-open-terminal { margin-left: auto; }
+#dashboard .snippet-page button, .snippet-page-dialog button {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: 44px; height: 44px; padding: 0; border: 1px solid var(--library-line); border-radius: 10px;
+  background: var(--home-surface); color: var(--home-accent-hover); cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+#dashboard .snippet-page button:hover:not(:disabled), .snippet-page-dialog button:hover:not(:disabled) { background: var(--home-accent-soft); border-color: var(--home-accent); }
+#dashboard .snippet-page button.snippet-primary, .snippet-page-dialog button.snippet-primary { color: #fff; border-color: var(--home-accent); background: var(--home-accent); }
+#dashboard .snippet-page button.snippet-primary:hover:not(:disabled), .snippet-page-dialog button.snippet-primary:hover:not(:disabled) { border-color: var(--home-accent-hover); background: var(--home-accent-hover); }
+.snippet-page-dialog button:disabled { opacity: .5; cursor: not-allowed; }
+#dashboard .snippet-page :is(button, input):focus-visible, .snippet-page-dialog :is(button, input, textarea):focus-visible { outline: 2px solid var(--home-accent); outline-offset: 3px; }
+#dashboard .snippet-page svg, .snippet-page-dialog button svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.snippet-page .snippet-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+#dashboard .snippet-page button[data-new] { width: auto; gap: 8px; padding: 0 14px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.snippet-page .snippet-search { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 160px; height: 44px; padding: 0 14px; border: 1px solid var(--library-line); border-radius: 10px; background: var(--home-surface); }
+.snippet-page .snippet-search > span { display: flex; flex: 0 0 auto; color: var(--home-accent-hover); }
+.snippet-page .snippet-search:hover { border-color: var(--home-accent); }
+.snippet-page .snippet-search:focus-within { border-color: var(--home-accent); box-shadow: 0 0 0 3px var(--home-accent-soft); }
+.snippet-page .snippet-search input { width: 100%; min-width: 0; height: 100%; padding: 0; border: 0; outline: none; box-shadow: none; background: transparent; color: var(--home-ink); font: inherit; font-size: 14px; }
+#dashboard .snippet-page .snippet-search input:focus-visible { outline: none; }
+.snippet-page .snippet-search input::placeholder { color: var(--home-muted); }
+.snippet-page .snippet-status { margin: 14px 0 18px; color: var(--home-muted); font-size: 12px; line-height: 1.5; }
+.snippet-page .snippet-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 16px; }
+.snippet-page .snippet-card { display: flex; flex-direction: column; min-width: 0; padding: 20px; border: 1px solid var(--library-line); border-radius: 14px; background: var(--home-surface); transition: border-color 140ms ease, box-shadow 140ms ease; }
+.snippet-page .snippet-card:hover, .snippet-page .snippet-card:focus-within { border-color: var(--home-accent); box-shadow: 0 4px 16px #f4511e0a; }
+.snippet-page .snippet-card h3 { margin: 0 0 14px; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.snippet-page .snippet-card pre { margin: 0 0 18px; min-height: 48px; max-height: 160px; padding: 12px; border: 1px solid #f8e8dd; border-radius: 8px; background: var(--library-code); color: #783c22; font: 12px/1.7 var(--home-mono); white-space: pre-wrap; overflow-wrap: anywhere; overflow-y: auto; }
+.snippet-page .snippet-actions { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid #f8e8dd; }
+#dashboard .snippet-page .snippet-actions button { width: 36px; height: 36px; border-color: transparent; border-radius: 8px; background: var(--home-accent-soft); }
+#dashboard .snippet-page .snippet-actions button:hover { border-color: var(--home-accent); }
+#dashboard .snippet-page .snippet-actions .snippet-delete { margin-left: auto; color: var(--home-danger); background: #fff1f0; }
+#dashboard .snippet-page .snippet-actions .snippet-delete:hover { border-color: var(--home-danger); background: #fee4e2; }
+.snippet-page .snippet-empty { grid-column: 1 / -1; padding: 64px 16px; border: 1px dashed var(--library-line); border-radius: 14px; background: var(--home-surface); text-align: center; color: var(--home-muted); }
+.snippet-page .snippet-empty .snippet-symbol { display: block; margin-bottom: 24px; font-size: 32px; }
+.snippet-page .snippet-empty strong { display: block; color: var(--home-ink); }
+.snippet-page .snippet-empty p { font-size: 13px; line-height: 1.6; }
+.snippet-page-dialog { width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 24px; border: 1px solid var(--library-line); border-radius: 16px; background: var(--home-surface); box-shadow: 0 24px 60px #17203526; }
+.snippet-page-dialog::backdrop { background: var(--home-overlay); }
+.snippet-page-dialog header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.snippet-page-dialog h2 { margin: 0; font-size: 20px; }
+.snippet-page-dialog label { display: grid; gap: 8px; margin: 18px 0; font-size: 13px; font-weight: 600; }
+.snippet-page-dialog :is(input, textarea) { width: 100%; padding: 12px; border: 1px solid var(--library-line); border-radius: 8px; background: var(--library-code); color: var(--home-ink); }
+.snippet-page-dialog input { height: 44px; }
+.snippet-page-dialog textarea { font: 13px/1.6 var(--home-mono); resize: vertical; }
+.snippet-page-dialog .snippet-hint { color: var(--home-muted); font-size: 12px; line-height: 1.6; }
+.snippet-page-dialog .snippet-editor-error { color: var(--home-danger); font-size: 13px; }
+.snippet-page-dialog footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+@media (max-width: 700px) {
+  .snippet-page { padding: 24px 16px; }
+  .snippet-page-heading { gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .snippet-page-heading > .snippet-symbol { flex-basis: 48px; height: 48px; font-size: 22px; }
+  .snippet-page-heading h1 { font-size: 24px; }
+  .snippet-page .snippet-card { padding: 16px; }
+  #dashboard .snippet-page .snippet-actions button { width: 44px; height: 44px; }
+  .snippet-page .snippet-search input, .snippet-page-dialog :is(input, textarea) { font-size: 16px; }
+  .snippet-page-dialog { padding: 20px; }
+}
+@media (max-width: 600px) {
+  #dashboard .home-rail { overflow-x: auto; }
+  #dashboard .rail-item { flex-shrink: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #dashboard .snippet-page button, .snippet-page .snippet-card, .snippet-page-dialog button { transition: none; }
+}

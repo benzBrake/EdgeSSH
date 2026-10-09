@@ -1,3 +1,4 @@
+import { createElement, Copy, Pencil, Plus, RefreshCw, Trash2, type IconNode } from 'lucide';
 import { SnippetStore, type Snippet } from './snippet-store';
 import { SnippetEditor } from './snippet-editor';
 
@@ -22,16 +23,27 @@ export class SnippetList {
     this.search = this.root.querySelector('input')!;
     this.list = this.root.querySelector('.snippet-list')!;
     this.status = this.root.querySelector('.snippet-status')!;
+    if (!options.compact) {
+      for (const [selector, name, icon] of [
+        ['[data-new]', '新建片段', Plus], ['[data-refresh]', '刷新代码片段', RefreshCw],
+      ] as const) {
+        const button = this.root.querySelector<HTMLButtonElement>(selector)!;
+        button.setAttribute('aria-label', name); button.title = name;
+        button.replaceChildren(createElement(icon, { 'aria-hidden': 'true' }));
+        if (selector === '[data-new]') button.append(name);
+      }
+    }
     this.search.addEventListener('input', () => this.render());
-    this.root.querySelector('[data-new]')!.addEventListener('click', () => editor.open());
+    this.root.querySelector('[data-new]')!.addEventListener('click', () => editor.open(undefined, !options.compact));
     this.root.querySelector('[data-refresh]')!.addEventListener('click', () => void store.load(true));
     store.addEventListener('change', () => this.render());
     this.render();
   }
 
-  private action(label: string, title: string, callback: (button: HTMLButtonElement) => void): HTMLButtonElement {
+  private action(label: string, title: string, callback: (button: HTMLButtonElement) => void, icon?: IconNode): HTMLButtonElement {
     const button = document.createElement('button'); button.type = 'button';
     button.textContent = label; button.title = title; button.setAttribute('aria-label', title);
+    if (!this.options.compact && icon) button.replaceChildren(createElement(icon, { 'aria-hidden': 'true' }));
     button.addEventListener('click', () => callback(button));
     return button;
   }
@@ -63,14 +75,14 @@ export class SnippetList {
       actions.append(this.action('复制', `复制 ${snippet.name}`, async () => {
         try { await navigator.clipboard.writeText(snippet.command); this.status.textContent = '命令已复制。'; }
         catch { this.status.textContent = '无法访问剪贴板，请选中命令手动复制。'; }
-      }));
-      actions.append(this.action('编辑', `编辑 ${snippet.name}`, () => this.editor.open(snippet)));
+      }, Copy));
+      actions.append(this.action('编辑', `编辑 ${snippet.name}`, () => this.editor.open(snippet, !this.options.compact), Pencil));
       const remove = this.action('删除', `删除 ${snippet.name}`, async (button) => {
         if (!confirm(`删除片段「${snippet.name}」？删除后不会自动恢复。`)) return;
         button.disabled = true;
         try { await this.store.remove(snippet.id); }
         catch (error) { this.status.textContent = error instanceof Error ? error.message : '删除失败，请重试。'; button.disabled = false; }
-      });
+      }, Trash2);
       remove.className = 'snippet-delete'; actions.append(remove);
       row.append(name, command, actions); this.list.append(row);
     }

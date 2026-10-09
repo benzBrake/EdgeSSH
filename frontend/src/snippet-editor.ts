@@ -1,3 +1,4 @@
+import { createElement, Check, X } from 'lucide';
 import { SnippetStore, type Snippet } from './snippet-store';
 
 export class SnippetEditor {
@@ -31,9 +32,18 @@ export class SnippetEditor {
     return this.form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement;
   }
 
-  open(snippet?: Snippet): void {
+  open(snippet?: Snippet, fromPage = false): void {
     this.editing = snippet;
     this.returnFocus = document.activeElement as HTMLElement;
+    this.dialog.className = fromPage ? 'snippet-page-dialog' : 'snippet-dialog snippet-surface';
+    for (const [selector, label, icon] of [
+      ['[data-cancel]', '取消', X], ['[type="submit"]', '保存片段', Check],
+    ] as const) {
+      const button = this.dialog.querySelector<HTMLButtonElement>(selector)!;
+      button.setAttribute('aria-label', label); button.title = label;
+      if (fromPage) button.replaceChildren(createElement(icon, { 'aria-hidden': 'true' }));
+      else button.textContent = label;
+    }
     this.form.reset();
     this.field('name').value = snippet?.name ?? '';
     this.field('command').value = snippet?.command ?? '';
