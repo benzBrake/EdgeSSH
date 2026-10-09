@@ -9,6 +9,7 @@ import { systemIcon } from './os-icons';
 import { SftpWorkbench } from './sftp-workbench';
 import { bindSessionCreateMenu, type SessionKind } from './session-create-menu';
 import { Snippets } from './snippets';
+import { resolveSnippetTarget } from './snippet-action';
 import { resolveConnectionControl, resolveConnectionPanel } from './ui-state';
 import { classifyHostKey, SSH_FINGERPRINT_RE, type HostKeyPrompt } from './host-key';
 import { FileManager, collectFileManagerElements } from './file-manager';
@@ -430,6 +431,7 @@ let profiles: SavedProfile[] = [];
 let temporaryProfiles: TemporaryProfile[] = [];
 let connectionPanelTab: 'saved' | 'temporary' = 'saved';
 let dashboard: Dashboard | undefined;
+let snippets: Snippets | undefined;
 let sftpWorkbench: SftpWorkbench | undefined;
 let hostKeys: Record<string, string> = {};
 let socket: WebSocket | null = null;
@@ -1021,6 +1023,7 @@ terminal.loadAddon(new WebLinksAddon());
 terminal.open(ui.terminalElement);
 let reportedSettingsError = '';
 settingsStore.addEventListener('change', () => {
+  snippets?.refreshActions();
   if (!isSessionFrame && settingsStore.error && reportedSettingsError !== settingsStore.error && document.body.dataset.view !== 'settings') {
     toast(bilingual('设置同步失败，请在设置页重新加载。', 'Settings sync failed. Open Settings and reload.'), 'error');
   }
@@ -2834,12 +2837,12 @@ async function initialize(): Promise<void> {
       if (isSessionFrame) postSessionEvent('open-files');
       else openEmbeddedSession({ kind: 'sftp' });
     },
-    snippets: new Snippets(sftpWorkbench?.terminalPane.querySelector<HTMLElement>('.terminal-stage') ?? ui.terminalCard, (snippet) => {
+    snippets: snippets = new Snippets(sftpWorkbench?.terminalPane.querySelector<HTMLElement>('.terminal-stage') ?? ui.terminalCard, (snippet) => {
       sftpWorkbench?.setTerminalOpen(true);
       const settings = settingsStore.snapshot?.settings;
       if (!settings) { toast(bilingual('请先加载设置。', 'Load settings first.'), 'error'); return false; }
       const editorHidden = document.getElementById('command-editor')!.hidden;
-      if (editorHidden && settings.collapsedSnippetAction === 'terminal' && !/[\r\n]/.test(snippet.command)) {
+      if (resolveSnippetTarget(snippet.command, !editorHidden, settings.collapsedSnippetAction) === 'terminal') {
         if (connectionState !== 'connected') { toast(bilingual('终端未连接，无法输入片段。', 'The terminal is disconnected. Cannot insert the snippet.'), 'error'); return false; }
         sendTerminalData(snippet.command);
         terminal.focus();
@@ -2866,7 +2869,9 @@ async function initialize(): Promise<void> {
       } else {
         dashboard?.show();
       }
-    }, () => dashboard?.showSnippets(true), sessionKind === 'sftp' ? true : undefined, (message) => toast(message, 'error')),
+    }, () => dashboard?.showSnippets(true), sessionKind === 'sftp' ? true : undefined, (message) => toast(message, 'error'),
+    (snippet) => resolveSnippetTarget(snippet.command, !document.getElementById('command-editor')!.hidden,
+      settingsStore.snapshot?.settings.collapsedSnippetAction ?? 'editor')),
     refresh: async () => {
       profiles = await loadProfiles();
       renderProfiles();

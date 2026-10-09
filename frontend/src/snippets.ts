@@ -3,6 +3,7 @@ import { SnippetStore, type Snippet } from './snippet-store';
 import { SnippetEditor } from './snippet-editor';
 import { SnippetList } from './snippet-list';
 import { SnippetPanel } from './snippet-panel';
+import type { SnippetTarget } from './snippet-action';
 import './snippets.css';
 import './snippet-page.css';
 
@@ -10,8 +11,9 @@ export class Snippets {
   readonly page = document.createElement('section');
   private readonly store = new SnippetStore();
   private readonly panel: SnippetPanel;
+  private readonly library: SnippetList;
 
-  constructor(container: HTMLElement, use: (snippet: Snippet) => boolean, openTerminal: () => void, openLibrary: () => void, initiallyCollapsed: boolean | undefined, reportError: (message: string) => void) {
+  constructor(container: HTMLElement, use: (snippet: Snippet) => boolean, openTerminal: () => void, openLibrary: () => void, initiallyCollapsed: boolean | undefined, reportError: (message: string) => void, target: (snippet: Snippet) => SnippetTarget) {
     const editor = new SnippetEditor(this.store);
     this.page.id = 'snippets-page';
     this.page.className = 'snippet-page';
@@ -26,8 +28,9 @@ export class Snippets {
     const back = this.page.querySelector<HTMLButtonElement>('.snippet-open-terminal')!;
     back.prepend(createElement(Terminal, { 'aria-hidden': 'true' }));
     back.addEventListener('click', openTerminal);
-    this.page.append(new SnippetList(this.store, editor).root);
-    this.panel = new SnippetPanel(container, this.store, editor, use, openLibrary, initiallyCollapsed, reportError);
+    this.library = new SnippetList(this.store, editor);
+    this.page.append(this.library.root);
+    this.panel = new SnippetPanel(container, this.store, editor, use, openLibrary, initiallyCollapsed, reportError, target);
   }
 
   show(fromTerminal = false): void {
@@ -37,7 +40,8 @@ export class Snippets {
   }
 
   hide(): void { this.page.hidden = true; }
-  refreshLanguage(): void { this.panel.refreshLanguage(); }
+  refreshLanguage(): void { this.panel.refreshLanguage(); this.library.refreshLanguage(); }
+  refreshActions(): void { this.panel.refreshActions(); }
   load(): void { void this.store.load(true); }
   clear(): void { this.store.clear(); }
 }

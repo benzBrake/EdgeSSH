@@ -1,6 +1,7 @@
 import { SnippetList } from './snippet-list';
 import { SnippetEditor } from './snippet-editor';
 import { SnippetStore, type Snippet } from './snippet-store';
+import { snippetActionLabel, type SnippetTarget } from './snippet-action';
 
 const COLLAPSED_STORAGE_KEY = 'edgessh:snippet-panel:collapsed';
 const isMobile = () => matchMedia('(max-width: 700px)').matches;
@@ -16,11 +17,12 @@ export class SnippetPanel {
   private readonly list: HTMLElement;
   private readonly status: HTMLElement;
   private readonly menuContainer: HTMLElement;
+  private readonly library: SnippetList;
   private position?: { x: number; y: number };
 
   constructor(private readonly container: HTMLElement, private readonly store: SnippetStore, editor: SnippetEditor,
     private readonly use: (snippet: Snippet) => boolean, openLibrary: () => void, private readonly initiallyCollapsed: boolean | undefined,
-    private readonly reportError: (message: string) => void) {
+    private readonly reportError: (message: string) => void, private readonly target: (snippet: Snippet) => SnippetTarget) {
     this.root.id = 'snippet-panel';
     this.root.className = 'snippet-panel snippet-surface';
     this.root.setAttribute('aria-label', '代码片段浮窗');
@@ -29,12 +31,13 @@ export class SnippetPanel {
         <span class="snippet-symbol" aria-hidden="true">{ }</span><strong>代码片段</strong><span class="snippet-grip" aria-hidden="true">⠿</span>
       </button><button class="snippet-manage" type="button" aria-label="管理代码片段" title="管理代码片段"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 1 0-2 3.46l.15.08a2 2 0 0 1 1 1.73v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 1 0 2 3.46l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 1 0 2-3.46l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 1 0-2-3.46l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
       <button class="snippet-collapse" type="button" aria-controls="snippet-panel-body"></button>
-    </header><div id="snippet-panel-body"><p class="snippet-panel-hint">常用命令，一次保存，随时取用。</p></div>`;
+    </header><div id="snippet-panel-body"></div>`;
     this.body = this.root.querySelector('#snippet-panel-body')!;
     this.toggle = this.root.querySelector('.snippet-collapse')!;
-    this.body.append(new SnippetList(store, editor, { compact: true, use: (snippet) => {
+    this.library = new SnippetList(store, editor, { compact: true, target, use: (snippet) => {
       if (use(snippet) && isMobile()) this.setCollapsed(true);
-    } }).root);
+    } });
+    this.body.append(this.library.root);
     container.append(this.root);
     const editorToggle = document.getElementById('command-editor-toggle');
     if (!editorToggle) throw new Error('Missing terminal tools element #command-editor-toggle');
@@ -93,6 +96,9 @@ export class SnippetPanel {
     observer.observe(container); observer.observe(this.root); observer.observe(this.menuContainer);
     observer.observe(editorToggle.parentElement!);
     observer.observe(document.getElementById('terminal-tools')!);
+    const commandEditor = document.getElementById('command-editor');
+    if (!commandEditor) throw new Error('Missing terminal tools element #command-editor');
+    new MutationObserver(() => this.refreshActions()).observe(commandEditor, { attributes: true, attributeFilter: ['hidden'] });
     document.addEventListener('fullscreenchange', () => this.positionMenu());
     window.addEventListener('resize', () => this.positionMenu());
     window.addEventListener('scroll', () => this.positionMenu(), true);
@@ -123,6 +129,15 @@ export class SnippetPanel {
   }
 
   refreshLanguage(): void {
+    const scrollTop = this.body.scrollTop;
+    this.library.refreshLanguage();
+    this.root.setAttribute('aria-label', localize('代码片段浮窗', 'Snippet panel'));
+    this.root.querySelector('.snippet-drag strong')!.textContent = localize('代码片段', 'Snippets');
+    const drag = this.root.querySelector<HTMLButtonElement>('.snippet-drag')!;
+    drag.setAttribute('aria-label', localize('移动代码片段窗口', 'Move snippet panel'));
+    drag.title = localize('拖动移动，也可用方向键移动、Home 键复位', 'Drag or use arrow keys to move; press Home to reset');
+    const manage = this.root.querySelector<HTMLButtonElement>('.snippet-manage')!;
+    manage.title = localize('管理代码片段', 'Manage snippets'); manage.setAttribute('aria-label', manage.title);
     this.launcher.querySelector('span')!.textContent = localize('片段', 'Snippets');
     this.launcher.title = localize('选择代码片段', 'Choose a snippet');
     this.launcher.setAttribute('aria-label', this.launcher.title);
@@ -135,6 +150,7 @@ export class SnippetPanel {
     this.menu.querySelector('[data-manage]')!.textContent = localize('管理代码片段', 'Manage snippets');
     this.menu.querySelector('[data-retry]')!.textContent = localize('重新加载', 'Retry loading');
     this.renderMenu();
+    this.body.scrollTop = scrollTop;
   }
 
   private setMenuOpen(open: boolean): void {
@@ -148,6 +164,9 @@ export class SnippetPanel {
   }
 
   private renderMenu(): void {
+    const focusedId = (document.activeElement as HTMLElement | null)?.dataset.snippetId;
+    const scrollTop = this.list.scrollTop;
+    const menuScrollTop = this.menu.scrollTop;
     const query = this.search.value.trim().toLowerCase();
     const items = this.store.items.filter((item) => `${item.name}\n${item.command}`.toLowerCase().includes(query));
     this.status.textContent = this.store.loading ? localize('正在加载片段…', 'Loading snippets…')
@@ -157,14 +176,29 @@ export class SnippetPanel {
     this.list.replaceChildren();
     for (const snippet of items) {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'snippet-quick-item';
-      button.setAttribute('aria-label', localize(`使用 ${snippet.name}`, `Use ${snippet.name}`));
+      button.dataset.snippetId = snippet.id;
+      button.title = `${snippetActionLabel(this.target(snippet))} ${snippet.name}`;
+      button.setAttribute('aria-label', button.title);
       const name = document.createElement('strong'); name.textContent = snippet.name;
       const command = document.createElement('pre'); command.textContent = snippet.command; command.title = snippet.command;
       button.append(name, command);
       button.addEventListener('click', () => { if (this.use(snippet)) this.setMenuOpen(false); });
       this.list.append(button);
     }
+    if (focusedId) [...this.list.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.dataset.snippetId === focusedId)?.focus({ preventScroll: true });
+    this.list.scrollTop = scrollTop; this.menu.scrollTop = menuScrollTop;
     this.positionMenu();
+  }
+
+  refreshActions(): void {
+    this.library.refreshActions();
+    for (const button of this.list.querySelectorAll<HTMLButtonElement>('.snippet-quick-item')) {
+      const snippet = this.store.items.find((item) => item.id === button.dataset.snippetId);
+      if (!snippet) continue;
+      button.title = `${snippetActionLabel(this.target(snippet))} ${snippet.name}`;
+      button.setAttribute('aria-label', button.title);
+    }
   }
 
   private positionMenu(): void {

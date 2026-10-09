@@ -1,9 +1,10 @@
 import { test, expect, type Page, type FrameLocator } from '@playwright/test';
 import { DEFAULT_SNIPPETS, type Snippet } from '../../src/accounts/snippet-data';
 import { fileFixture, fileSession } from './file-fixture';
+import { DEFAULT_SETTINGS, type WorkspaceSettings } from '../../src/accounts/settings-data';
 
-async function fixture(page: Page) {
-  const files = await fileFixture(page, { workbench: 'none', initialCommand: '' });
+async function fixture(page: Page, settings?: WorkspaceSettings) {
+  const files = await fileFixture(page, { workbench: 'none', initialCommand: '', settings });
   let items: Snippet[] = DEFAULT_SNIPPETS.map((item) => ({ ...item, id: crypto.randomUUID(), updatedAt: Date.now() }));
   await page.route('**/api/snippets**', async (route) => {
     const request = route.request();
@@ -73,7 +74,7 @@ test('终端浮窗折叠、拖动与键盘复位；填入草稿而不执行，�
   const panel = session.locator('#snippet-panel');
   await expandPanel(session);
   await expect(panel.locator('.snippet-card')).toHaveCount(10);
-  await panel.getByRole('button', { name: '使用 查看磁盘空间', exact: true }).click();
+  await panel.getByRole('button', { name: '插入编辑器 查看磁盘空间', exact: true }).click();
   await expect(session.locator('#command-editor-input')).toHaveValue('df -h');
   expect(files.calls.filter((call) => call.type === 'input')).toHaveLength(0);
   await session.locator('#command-editor-send').click();
@@ -148,11 +149,11 @@ test('多行片段保留换行且不直接发送；取消覆盖保留旧草稿�
   await session.getByRole('button', { name: '保存片段', exact: true }).click();
   await session.getByRole('button', { name: '返回终端', exact: true }).click();
   await expandPanel(session);
-  await panel.getByRole('button', { name: '使用 多行脚本', exact: true }).click();
+  await panel.getByRole('button', { name: '插入编辑器 多行脚本', exact: true }).click();
   await expect(session.locator('#command-editor-input')).toHaveValue('echo a\n# 注释\necho b');
   await expandPanel(session);
   page.once('dialog', (dialog) => dialog.dismiss());
-  await panel.getByRole('button', { name: '使用 查看当前目录', exact: true }).click();
+  await panel.getByRole('button', { name: '插入编辑器 查看当前目录', exact: true }).click();
   await expect(session.locator('#command-editor-input')).toHaveValue('echo a\n# 注释\necho b');
   expect(files.calls.filter((call) => call.type === 'input')).toHaveLength(0);
   await session.locator('body').evaluate(() => window.dispatchEvent(new Event('auth-required')));
@@ -191,7 +192,7 @@ test('浮窗在调整尺寸后仍可触达，并适配浅色及减少动态效�
   expect(menu.y + menu.height).toBeLessThanOrEqual(stage.y + stage.height);
   await page.screenshot({ path: testInfo.outputPath('snippet-landscape-light.png'), fullPage: true });
   await session.locator('#snippet-quick-menu').getByRole('searchbox').fill('df -h');
-  await session.locator('#snippet-quick-menu').getByRole('button', { name: '使用 查看磁盘空间', exact: true }).click();
+  await session.locator('#snippet-quick-menu').getByRole('button', { name: '插入编辑器 查看磁盘空间', exact: true }).click();
   await expect(session.locator('#command-editor-input')).toHaveValue('df -h');
 });
 
@@ -216,7 +217,7 @@ test('快捷菜单位于命令按钮左侧，支持搜索、键盘选择、关�
   await search.fill('df -h');
   await expect(menu.locator('.snippet-quick-item')).toHaveCount(1);
   await search.press('Tab');
-  await expect(menu.getByRole('button', { name: '使用 查看磁盘空间', exact: true })).toBeFocused();
+  await expect(menu.getByRole('button', { name: '插入编辑器 查看磁盘空间', exact: true })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(menu).toBeHidden();
   const input = session.locator('#command-editor-input');
@@ -226,7 +227,7 @@ test('快捷菜单位于命令按钮左侧，支持搜索、键盘选择、关�
   await launcher.click();
   await search.fill('pwd');
   page.once('dialog', dialog => dialog.dismiss());
-  await menu.getByRole('button', { name: '使用 查看当前目录', exact: true }).click();
+  await menu.getByRole('button', { name: '插入编辑器 查看当前目录', exact: true }).click();
   await expect(menu).toBeVisible();
   await expect(search).toHaveValue('pwd');
   await expect(input).toHaveValue('df -h');
@@ -294,7 +295,7 @@ test('快捷菜单与管理页同步，保留多行命令且登出清空', async
   await session.getByRole('button', { name: '返回终端', exact: true }).click();
   await session.locator('#command-editor-close').click();
   await session.locator('#snippet-menu-toggle').click();
-  await menu.getByRole('button', { name: '使用 多行快捷片段 <script>', exact: true }).click();
+  await menu.getByRole('button', { name: '插入编辑器 多行快捷片段 <script>', exact: true }).click();
   await expect(session.locator('#command-editor')).toBeVisible();
   await expect(session.locator('#command-editor-input')).toHaveValue('echo a\n# 注释\necho b');
   expect(files.calls.filter(call => call.type === 'input')).toHaveLength(0);
@@ -422,4 +423,158 @@ test('代码片段偏好存储失败会提示但不阻止切换', async ({ page 
   await expect(session.locator('.toast').filter({ hasText: '无法保存代码片段显示偏好' })).toBeVisible();
   await expandPanel(session);
   await expect(session.locator('#snippet-panel')).toBeVisible();
+});
+
+test('紧凑浮窗控件等高，图标操作可用，明暗主题和横屏无溢出', async ({ page, context }, testInfo) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await fixture(page);
+  await connectSession(page);
+  const session = fileSession(page);
+  const panel = session.locator('#snippet-panel');
+  await expandPanel(session);
+  await expect(panel.locator('.snippet-panel-hint')).toHaveCount(0);
+  const setTheme = async (theme: string) => {
+    if (await page.locator('html').getAttribute('data-theme') !== theme) {
+      await page.locator('#theme-toggle').evaluate(element => (element as HTMLButtonElement).click());
+    }
+    await expect(session.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(panel).toHaveCSS('background-color', theme === 'light' ? 'rgb(248, 251, 251)' : 'rgb(13, 18, 25)');
+  };
+  const assertLayout = async (height: number) => {
+    const search = (await panel.locator('.snippet-search').boundingBox())!;
+    for (const selector of ['[data-new]', '[data-refresh]', '.snippet-actions button']) {
+      for (const button of await panel.locator(selector).all()) {
+        expect((await button.boundingBox())!.height).toBe(height);
+      }
+    }
+    expect(search.height).toBe(height);
+    for (const selector of ['[data-new]', '[data-refresh]']) {
+      const button = panel.locator(selector);
+      const box = (await button.boundingBox())!;
+      expect(box.y).toBe(search.y);
+      expect(box.x).toBeGreaterThanOrEqual(search.x + search.width);
+      await expect(button.locator('svg')).toHaveCount(1);
+      await expect(button).toHaveText('');
+    }
+    const body = panel.locator('#snippet-panel-body');
+    expect(await body.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await session.locator('body').evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  };
+  const height = testInfo.project.name === 'mobile' ? 44 : 28;
+  for (const theme of ['dark', 'light']) {
+    await setTheme(theme);
+    await assertLayout(height);
+    await page.screenshot({ path: testInfo.outputPath(`snippet-compact-${theme}.png`), fullPage: true });
+  }
+  const first = panel.locator('.snippet-card').first();
+  for (const action of ['复制', '编辑', '删除']) {
+    const button = first.getByRole('button', { name: `${action} 查看当前目录`, exact: true });
+    await expect(button).toHaveText('');
+    await expect(button.locator('svg')).toHaveCount(1);
+    expect((await button.locator('svg').boundingBox())!.width).toBe(16);
+  }
+  await first.getByRole('button', { name: '复制 查看当前目录', exact: true }).click();
+  expect(await session.locator('body').evaluate(() => navigator.clipboard.readText())).toBe('pwd');
+  await expect(panel.getByRole('status')).toHaveText('命令已复制。');
+  await panel.getByRole('button', { name: '新建片段', exact: true }).click();
+  await session.getByRole('dialog').getByLabel('名称').fill('浮窗新增');
+  await session.getByRole('dialog').getByLabel('命令', { exact: true }).fill('echo first');
+  await session.getByRole('button', { name: '保存片段', exact: true }).click();
+  await panel.getByRole('button', { name: '编辑 浮窗新增', exact: true }).click();
+  await session.getByRole('dialog').getByLabel('命令', { exact: true }).fill('echo changed');
+  await session.getByRole('button', { name: '保存片段', exact: true }).click();
+  await panel.getByRole('button', { name: '刷新代码片段', exact: true }).click();
+  await expect(panel.locator('.snippet-card').filter({ hasText: '浮窗新增' }).locator('pre')).toHaveText('echo changed');
+  page.once('dialog', dialog => dialog.accept());
+  await panel.getByRole('button', { name: '删除 浮窗新增', exact: true }).click();
+  await expect(panel.locator('.snippet-card')).toHaveCount(10);
+  await page.setViewportSize({ width: 667, height: 375 });
+  for (const theme of ['dark', 'light']) {
+    await setTheme(theme);
+    await assertLayout(44);
+    await page.screenshot({ path: testInfo.outputPath(`snippet-compact-landscape-${theme}.png`), fullPage: true });
+  }
+});
+
+test('浮窗插入文案与去向一致，随编辑器开合更新，单行不执行且多行进入草稿', async ({ page }) => {
+  const files = await fixture(page, { ...DEFAULT_SETTINGS, sshEditorDefaultOpen: false, collapsedSnippetAction: 'terminal' });
+  await page.route('**/api/snippets', route => route.fulfill({ json: { snippets: [
+    { id: 'single', name: '单行', command: 'pwd', updatedAt: 1 },
+    { id: 'multi', name: '多行', command: 'echo a\necho b', updatedAt: 1 },
+  ] } }));
+  await connectSession(page);
+  const session = fileSession(page);
+  const panel = session.locator('#snippet-panel');
+  await expandPanel(session);
+  await expect(session.locator('#command-editor')).toBeHidden();
+  await expect(panel.getByRole('button', { name: '插入终端 单行', exact: true })).toHaveText('插入终端');
+  await expect(panel.getByRole('button', { name: '插入编辑器 多行', exact: true })).toHaveText('插入编辑器');
+  await session.locator('[data-terminal-modifier="ctrl"]').click();
+  await session.locator('[data-terminal-modifier="alt"]').click();
+  await panel.getByRole('button', { name: '插入终端 单行', exact: true }).click();
+  expect(files.calls.filter(call => call.type === 'input').map(call => call.data)).toEqual(['pwd']);
+  await expect(session.locator('#command-editor')).toBeHidden();
+  await expandPanel(session);
+  await panel.getByRole('button', { name: '插入编辑器 多行', exact: true }).click();
+  const input = session.locator('#command-editor-input');
+  await expect(input).toHaveValue('echo a\necho b');
+  await expect(session.locator('#command-editor')).toBeVisible();
+  await expandPanel(session);
+  await expect(panel.getByRole('button', { name: '插入编辑器 单行', exact: true })).toHaveText('插入编辑器');
+  page.once('dialog', dialog => dialog.dismiss());
+  await panel.getByRole('button', { name: '插入编辑器 单行', exact: true }).click();
+  await expect(input).toHaveValue('echo a\necho b');
+  page.once('dialog', dialog => dialog.accept());
+  await panel.getByRole('button', { name: '插入编辑器 单行', exact: true }).click();
+  await expect(input).toHaveValue('pwd');
+  expect(files.calls.filter(call => call.type === 'input')).toHaveLength(1);
+  await expandPanel(session);
+  await session.locator('#command-editor-close').evaluate(element => (element as HTMLButtonElement).click());
+  await expect(panel.getByRole('button', { name: '插入终端 单行', exact: true })).toBeVisible();
+  await session.locator('body').evaluate(() => (window as any).wssh.disconnect());
+  await panel.getByRole('button', { name: '插入终端 单行', exact: true }).click();
+  await expect(session.locator('.toast').filter({ hasText: '终端未连接' })).toBeVisible();
+  expect(files.calls.filter(call => call.type === 'input')).toHaveLength(1);
+});
+
+test('设置同步、语言和片段刷新保留浮窗搜索、滚动与焦点，并更新插入文案', async ({ page }, testInfo) => {
+  const { settingsState, calls } = await fixture(page, { ...DEFAULT_SETTINGS, sshEditorDefaultOpen: false });
+  await connectSession(page);
+  const session = fileSession(page);
+  const panel = session.locator('#snippet-panel');
+  await expandPanel(session);
+  const search = panel.getByRole('searchbox');
+  await search.fill('查看');
+  const button = panel.locator('.snippet-use').last();
+  await button.focus();
+  const body = panel.locator('#snippet-panel-body');
+  const scrollTop = await body.evaluate(element => element.scrollTop);
+  const name = await button.getAttribute('aria-label');
+  expect(name).toMatch(/^插入编辑器 /);
+  settingsState.snapshot = { ...settingsState.snapshot, revision: 1, settings: { ...settingsState.snapshot.settings, collapsedSnippetAction: 'terminal' } };
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(button).toHaveText('插入终端');
+  await expect(button).toBeFocused();
+  await expect(search).toHaveValue('查看');
+  expect(await body.evaluate(element => element.scrollTop)).toBe(scrollTop);
+  await panel.locator('[data-refresh]').evaluate(element => (element as HTMLButtonElement).click());
+  await expect(panel.getByRole('status')).not.toContainText('正在加载');
+  await expect(button).toBeFocused();
+  await expect(search).toHaveValue('查看');
+  expect(await body.evaluate(element => element.scrollTop)).toBe(scrollTop);
+  if (testInfo.project.name === 'mobile') await page.locator('#session-menu-toggle').click();
+  await page.locator('#session-language-toggle').click();
+  await page.locator('#language-menu [data-language-choice="en"]').click();
+  await expect(button).toHaveText('Insert into terminal');
+  await expect(search).toHaveValue('查看');
+  expect(await body.evaluate(element => element.scrollTop)).toBe(scrollTop);
+  await session.locator('#command-editor-toggle').evaluate(element => (element as HTMLButtonElement).click());
+  await expect(button).toHaveText('Insert into editor');
+  await session.locator('#command-editor-close').evaluate(element => (element as HTMLButtonElement).click());
+  settingsState.snapshot = { ...settingsState.snapshot, revision: 2, settings: { ...settingsState.snapshot.settings, collapsedSnippetAction: 'editor' } };
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(button).toHaveText('Insert into editor');
+  await button.click();
+  await expect(session.locator('#command-editor')).toBeVisible();
+  expect(calls.filter(call => call.type === 'input')).toHaveLength(0);
 });

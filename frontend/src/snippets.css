@@ -16,7 +16,7 @@
   color: var(--snip-accent); background: var(--snip-accent-soft); font-weight: 600;
 }
 .snippet-surface .snippet-symbol { color: var(--snip-accent); font: 700 20px var(--mono); white-space: nowrap; }
-.snippet-panel .snippet-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.snippet-panel .snippet-toolbar { display: flex; gap: 6px; align-items: center; }
 .snippet-surface .snippet-search { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 120px; height: 28px; padding: 0 8px; border: 1px solid var(--snip-border); border-radius: 8px; background: var(--snip-card); }
 .snippet-surface .snippet-search:hover, .snippet-surface .snippet-search:focus-within { border-color: var(--snip-accent); }
 .snippet-surface .snippet-search > span { display: flex; align-items: center; justify-content: center; flex: 0 0 16px; height: 16px; color: var(--snip-muted); }
@@ -45,8 +45,7 @@
 .snippet-panel :is(button.snippet-collapse, button.snippet-manage) { width: 36px; padding: 0; border: 0; background: transparent; font-size: 20px; flex-shrink: 0; }
 .snippet-collapse svg { display: block; width: 18px; height: 18px; margin: auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .snippet-manage svg { display: block; width: 18px; height: 18px; margin: auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-#snippet-panel-body { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 12px 12px; scrollbar-width: thin; }
-.snippet-panel-hint { color: var(--snip-muted); font-size: 11px; margin: 12px 0; }
+#snippet-panel-body { min-height: 0; overflow: auto; overscroll-behavior: contain; overflow-anchor: none; padding: 10px; scrollbar-width: thin; }
 .snippet-menu-toggle { cursor: pointer; }
 .snippet-menu-toggle:focus-visible { outline: 2px solid #69e6b4; outline-offset: 2px; }
 .snippet-quick-menu { position: absolute; z-index: 25; display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--snip-border); border-radius: 12px; box-shadow: var(--shadow); overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
@@ -60,14 +59,21 @@
 .snippet-quick-item pre { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin: 0; min-height: 1.5em; overflow: hidden; color: var(--snip-muted); font: 11px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .snippet-quick-actions { display: flex; gap: 6px; border-top: 1px solid var(--snip-border); padding-top: 6px; }
 .snippet-quick-menu .snippet-quick-actions button { flex: 1; min-height: 30px; padding: 4px 6px; font-size: 11px; }
-.snippet-panel .compact .snippet-search { flex-basis: 100%; }
-.snippet-panel .compact .snippet-toolbar > button[data-new] { flex: 1; }
+.snippet-panel button { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; height: 28px; padding: 0 8px; }
+.snippet-panel button svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.snippet-panel .compact .snippet-search { min-width: 0; font-size: 12px; }
+.snippet-panel .compact .snippet-toolbar > button { flex: 0 0 28px; width: 28px; padding: 0; }
+.snippet-panel .snippet-status { font-size: 11px; margin: 6px 0; }
 .snippet-panel .compact .snippet-list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-.snippet-panel .compact .snippet-card { padding: 12px; border-radius: 8px; }
-.snippet-panel .compact .snippet-card pre { padding: 8px; margin-bottom: 10px; max-height: 90px; }
-.snippet-panel .compact .snippet-card h3 { font-size: 12px; margin-bottom: 8px; }
-.snippet-panel .compact .snippet-actions { gap: 4px; }
-.snippet-panel .compact .snippet-actions button { padding: 6px; font-size: 11px; }
+.snippet-panel .compact .snippet-card { padding: 10px; border-radius: 8px; }
+.snippet-panel .compact .snippet-card pre { padding: 6px 8px; margin-bottom: 6px; max-height: 90px; }
+.snippet-panel .compact .snippet-card h3 { font-size: 12px; margin-bottom: 6px; }
+.snippet-panel .compact .snippet-actions { gap: 6px; align-items: center; }
+.snippet-panel .compact .snippet-actions button { flex: 0 0 28px; width: 28px; padding: 0; border-color: transparent; background: var(--snip-accent-soft); color: var(--snip-accent); font-size: 11px; }
+.snippet-panel .compact .snippet-actions button:hover:not(:disabled) { border-color: var(--snip-accent); }
+.snippet-panel .compact .snippet-actions button.snippet-use { flex-basis: auto; width: auto; padding: 0 8px; white-space: nowrap; }
+.snippet-panel .compact .snippet-actions button.snippet-delete { color: var(--snip-danger); background: color-mix(in srgb, var(--snip-danger) 10%, var(--snip-card)); }
+.snippet-panel .compact .snippet-actions button.snippet-delete:hover:not(:disabled) { border-color: var(--snip-danger); }
 .snippet-dialog { width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 24px; border: 1px solid var(--snip-border); border-radius: 16px; box-shadow: var(--shadow); }
 .snippet-dialog::backdrop { background: #080b10a6; }
 .snippet-dialog header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
@@ -81,6 +87,9 @@
 @media (max-width: 700px) {
   .snippet-surface button { min-height: 44px; }
   .snippet-panel :is(button.snippet-collapse, button.snippet-manage) { width: 44px; }
+  .snippet-panel button { min-height: 44px; height: 44px; }
+  .snippet-panel .compact .snippet-search { height: 44px; }
+  .snippet-panel .compact .snippet-toolbar > button, .snippet-panel .compact .snippet-actions button:not(.snippet-use) { flex-basis: 44px; width: 44px; }
   .snippet-surface :is(input, textarea), .snippet-surface .snippet-search input { font-size: 16px; }
   .snippet-dialog { padding: 20px; }
 }
