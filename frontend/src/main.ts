@@ -665,6 +665,18 @@ function openEmbeddedSession({ kind = 'ssh', profile, connectionTab = 'saved' }:
   renderEmbeddedSessionTabs();
 }
 
+function positionPopup(menu: HTMLElement, anchor: HTMLElement, placement: 'start' | 'end' | 'before'): void {
+  const rect = anchor.getBoundingClientRect();
+  const gap = 6;
+  const margin = 8;
+  const width = menu.offsetWidth;
+  const height = menu.offsetHeight;
+  const x = placement === 'start' ? rect.left : placement === 'end' ? rect.right - width : rect.left - width - gap;
+  const y = placement === 'before' ? rect.top : rect.bottom + gap;
+  menu.style.left = `${Math.max(margin, Math.min(x, window.innerWidth - width - margin))}px`;
+  menu.style.top = `${Math.max(margin, Math.min(y, window.innerHeight - height - margin))}px`;
+}
+
 if (!isSessionFrame) {
   renderEmbeddedSessionTabs();
   new ResizeObserver(() => {
@@ -726,14 +738,13 @@ if (!isSessionFrame) {
   });
   sessionUI.home.addEventListener('click', () => activateEmbeddedSession(null));
   const createMenu = element<HTMLElement>('session-create-menu');
-  bindSessionCreateMenu(sessionUI.create, createMenu, (kind) => openEmbeddedSession({ kind }));
-  const positionCreateMenu = () => {
-    const x = sessionUI.create.getBoundingClientRect().left;
-    createMenu.style.left = `${Math.max(6, Math.min(x, window.innerWidth - 186))}px`;
-  };
-  new ResizeObserver(positionCreateMenu).observe(sessionUI.root);
-  sessionUI.create.addEventListener('pointerdown', positionCreateMenu);
-  sessionUI.create.addEventListener('keydown', positionCreateMenu);
+  createMenu.querySelector('[data-session-kind="ssh"]')?.prepend(createElement(TerminalIcon, { 'aria-hidden': 'true' }));
+  createMenu.querySelector('[data-session-kind="sftp"]')?.prepend(createElement(FolderOpen, { 'aria-hidden': 'true' }));
+  bindSessionCreateMenu(sessionUI.create, createMenu, (kind) => openEmbeddedSession({ kind }),
+    () => positionPopup(createMenu, sessionUI.create, 'start'));
+  new ResizeObserver(() => {
+    if (!createMenu.hidden) positionPopup(createMenu, sessionUI.create, 'start');
+  }).observe(sessionUI.root);
 } else {
   window.addEventListener('message', (event) => {
     if (event.origin !== location.origin || event.source !== window.parent || event.data?.source !== 'edgessh-parent') return;
@@ -2734,6 +2745,17 @@ const sessionMenuToggle = element<HTMLButtonElement>('session-menu-toggle');
 const sessionButtonGroup = element<HTMLElement>('session-button-group');
 sessionMenuToggle.append(createElement(Menu, { 'aria-hidden': 'true' }));
 
+function positionLanguageMenu(): void {
+  const toggle = element<HTMLButtonElement>('session-language-toggle');
+  const mobile = window.matchMedia('(max-width: 600px)').matches;
+  const fitsBeside = mobile && sessionButtonGroup.getBoundingClientRect().left >= languageMenu.offsetWidth + 14;
+  positionPopup(languageMenu, mobile ? sessionButtonGroup : toggle, fitsBeside ? 'before' : 'end');
+  if (fitsBeside) {
+    const top = Math.min(toggle.getBoundingClientRect().top, window.innerHeight - languageMenu.offsetHeight - 8);
+    languageMenu.style.top = `${Math.max(8, top)}px`;
+  }
+}
+
 function setSessionMenuOpen(open: boolean, restoreFocus = false): void {
   if (open) sessionButtonGroup.setAttribute('data-open', 'true');
   else sessionButtonGroup.removeAttribute('data-open');
@@ -2775,8 +2797,12 @@ document.addEventListener('pointerdown', (event) => {
 window.matchMedia('(max-width: 600px)').addEventListener('change', () => setSessionMenuOpen(false));
 languageToggles.forEach((toggle) => toggle.addEventListener('click', () => {
   languageMenu.hidden = !languageMenu.hidden;
+  if (!languageMenu.hidden) positionLanguageMenu();
   languageToggles.forEach((item) => item.setAttribute('aria-expanded', String(item === toggle && !languageMenu.hidden)));
 }));
+window.addEventListener('resize', () => {
+  if (!languageMenu.hidden) positionLanguageMenu();
+});
 languageMenu.querySelectorAll<HTMLButtonElement>('[data-language-choice]').forEach((choice) => choice.addEventListener('click', () => {
   const selected = choice.dataset.languageChoice!;
   if (selected === 'auto') {

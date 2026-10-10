@@ -227,6 +227,11 @@ test('加号单击新建 SSH，长按与键盘菜单选择 SFTP', async ({ page 
   await add.dispatchEvent('pointerdown', { button: 0, clientX: 100, clientY: 20 });
   const menu = page.locator('#session-create-menu');
   await expect(menu).toBeVisible();
+  await expect(menu.locator('[data-session-kind] svg')).toHaveCount(2);
+  const addBounds = await add.boundingBox();
+  const createBounds = await menu.boundingBox();
+  expect(Math.abs(createBounds!.x - addBounds!.x)).toBeLessThanOrEqual(1);
+  expect(createBounds!.y).toBeGreaterThan(addBounds!.y + addBounds!.height);
   await add.dispatchEvent('pointerup');
   await add.dispatchEvent('click');
   await expect(page.locator('.session-tab')).toHaveCount(0);
@@ -280,6 +285,9 @@ test('窄屏会话操作收进三道杠菜单', async ({ page }) => {
   await toggle.click();
   await page.locator('#session-language-toggle').click();
   await expect(page.locator('#language-menu')).toBeVisible();
+  const languageBounds = await page.locator('#language-menu').boundingBox();
+  expect(languageBounds!.x + languageBounds!.width).toBeLessThanOrEqual(menuBounds!.x + 1);
+  expect(languageBounds!.x).toBeGreaterThanOrEqual(0);
   await page.keyboard.press('Escape');
   await expect(page.locator('#language-menu')).toBeHidden();
   await expect(menu).toBeVisible();
@@ -288,6 +296,29 @@ test('窄屏会话操作收进三道杠菜单', async ({ page }) => {
   await expect(toggle).toBeHidden();
   await expect(menu).toBeVisible();
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('桌面语言菜单跟随语言按钮', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 812 });
+  await dashboardFixture(page);
+  const toggle = page.locator('#session-language-toggle');
+  await toggle.click();
+  const buttonBounds = await toggle.boundingBox();
+  const menuBounds = await page.locator('#language-menu').boundingBox();
+  expect(Math.abs(menuBounds!.x + menuBounds!.width - buttonBounds!.x - buttonBounds!.width)).toBeLessThanOrEqual(1);
+  expect(menuBounds!.y).toBeGreaterThan(buttonBounds!.y + buttonBounds!.height);
+});
+
+test('更窄屏幕的语言菜单位于会话菜单下方', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await dashboardFixture(page);
+  await page.locator('#session-menu-toggle').click();
+  await page.locator('#session-language-toggle').click();
+  const groupBounds = await page.locator('#session-button-group').boundingBox();
+  const menuBounds = await page.locator('#language-menu').boundingBox();
+  expect(menuBounds!.y).toBeGreaterThan(groupBounds!.y + groupBounds!.height);
+  expect(menuBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(menuBounds!.x + menuBounds!.width).toBeLessThanOrEqual(320);
 });
 
 test('生成预览、保护密码和使用下载始终对应同一公钥', async ({ page }) => {
