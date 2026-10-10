@@ -17,7 +17,7 @@ on:
         required: false
         type: string
       deployment_ref:
-        description: 需要检出并部署的提交 SHA
+        description: 已合入 main、需要检出并部署的提交 SHA
         required: false
         type: string
       deploy_preview:
@@ -56,11 +56,28 @@ jobs:
       PREVIEW_DOMAIN: ${{ vars.PREVIEW_DOMAIN }}
       DEPLOY_PREVIEW_WORKER: ${{ inputs.deploy_preview && 'true' || 'false' }}
     steps:
+      - name: Require main deployment
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error::Deploy must run from main. Merge the PR before deploying."
+            exit 1
+          fi
+
       - name: Check out repository
         uses: actions/checkout@v4
         with:
           # 强制更新通过可复用工作流传入目标提交，避免推送后仍部署触发任务的旧版本。
           ref: ${{ inputs.deployment_ref || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify deployed commit belongs to main
+        shell: bash
+        run: |
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+            echo "::error::The deployment commit has not been merged into main."
+            exit 1
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -71,20 +88,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 本地格式先校验；账户发现与远端资源配置在检查通过后执行。
+      # 代码检查由 PR 的 CI 完成；部署时仍须校验目标环境的配置。
       - name: Validate deployment settings
         run: npm run deploy:validate
         env:
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-
-      - name: Check project
-        run: npm run check
-
-      # 在模拟协议上回归共享文件组件，防止页面改动破坏终端侧栏或误操作真实主机。
-      - name: Check file manager in desktop and mobile browsers
-        run: |
-          npx playwright install --with-deps chromium
-          npm run test:browser -- --workers=2
 
       - name: Configure selected login, provision D1, migrate and deploy Worker
         run: npm run deploy

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # 分支保护只要求 PR checks，不将 dev 分支的检查当作合并结果的验证。
+    name: ${{ github.event_name == 'pull_request' && 'PR checks' || 'Dev checks' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check project
+        run: npm run check
+
+      - name: Check desktop and mobile browsers
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:browser -- --workers=2
