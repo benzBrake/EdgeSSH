@@ -2186,6 +2186,9 @@ function handleSshReconnectLog(entry: ReconnectLogEntry): void {
 }
 
 async function connect(): Promise<void> {
+  if (!isSessionFrame) {
+    throw new Error(bilingual('请在会话标签内连接 SSH。', 'Connect to SSH inside a session tab.'));
+  }
   if (connectionState === 'connecting' || connectionState === 'connected' || connectionState === 'disconnecting') return;
   if (socket || authorizationAbort) return;
   if (historyPasswordLoading) return;
@@ -2978,10 +2981,14 @@ async function initialize(): Promise<void> {
           showFormError(message);
           toast(message, 'error');
           setState('error');
+          setConnectionPanelTab('temporary');
+          setPanelOpen(true);
         }
       } else {
         showFormError(bilingual('找不到请求的主机。', 'The requested host was not found.'));
         setState('error');
+        setConnectionPanelTab('temporary');
+        setPanelOpen(true);
       }
     } else {
       if (new URLSearchParams(location.search).get('connectionTab') === 'temporary') setConnectionPanelTab('temporary');

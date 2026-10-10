@@ -116,6 +116,10 @@ test('会话栏在无会话和关闭最后一个会话后常驻显示', async ({
     await expect(bar).toBeVisible();
     await expect(home).toHaveAttribute('aria-current', 'page');
     await expect(page.locator('.session-tab')).toHaveCount(0);
+    await expect(page.locator('#dashboard')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
+    await expect(page.locator('#session-frame-host')).toBeHidden();
+    await expect(page.locator('#session-frame-host iframe')).toHaveCount(0);
     await expect(page.locator('#session-new')).toBeVisible();
     if (page.viewportSize()!.width <= 600) {
       await expect(page.locator('#session-menu-toggle')).toBeVisible();
@@ -148,6 +152,69 @@ test('会话栏在无会话和关闭最后一个会话后常驻显示', async ({
   await expect(page.locator('#session-frame-host')).toBeHidden();
   await expectEmptyHome();
 });
+
+for (const entry of ['plus', 'ssh-menu', 'quick', 'bottom-quick']) {
+  test(`取消未连接会话后没有 tab 或残留终端页：${entry}`, async ({ page }) => {
+    await dashboardFixture(page);
+    if (entry === 'plus') await page.locator('#session-new').click();
+    else if (entry === 'ssh-menu') {
+      await page.locator('#session-new').press('ArrowDown');
+      await page.locator('#session-create-menu [data-session-kind="ssh"]').click();
+    } else await page.locator(entry === 'quick' ? '#quick-connect' : '#bottom-quick').click();
+    const session = page.frameLocator('#session-frame-host iframe');
+    await expect(session.locator('#connection-panel')).toBeVisible();
+    if (entry === 'plus') await session.locator('#panel-close').press('Escape');
+    else if (entry === 'ssh-menu') await session.locator('#panel-scrim').click({ position: { x: 2, y: 2 } });
+    else await session.locator('#panel-close').click();
+    await expect(page.locator('.session-tab')).toHaveCount(0);
+    await expect(page.locator('#session-frame-host iframe')).toHaveCount(0);
+    await expect(page.locator('#session-frame-host')).toBeHidden();
+    await expect(page.locator('#app')).toBeHidden();
+    await expect(page.locator('#dashboard')).toBeVisible();
+    await expect(page.locator('#session-home')).toHaveAttribute('aria-current', 'page');
+  });
+}
+
+test('父页面兼容接口不能打开没有 tab 的独立终端', async ({ page }) => {
+  await dashboardFixture(page);
+  const error = await page.evaluate(async () => {
+    try {
+      await (window as any).wssh.connect({ host: '192.0.2.10', username: 'root', password: 'test-only-password' });
+      return null;
+    } catch (error) { return (error as Error).message; }
+  });
+  expect(error).toBe('请在会话标签内连接 SSH。');
+  await expect(page.locator('.session-tab')).toHaveCount(0);
+  await expect(page.locator('#session-frame-host')).toBeHidden();
+  await expect(page.locator('#app')).toBeHidden();
+  await expect(page.locator('#dashboard')).toBeVisible();
+});
+
+for (const failure of ['host-missing', 'credentials-failed']) {
+  test(`主页连接失败显示错误，关闭最后一个 tab 后回主页：${failure}`, async ({ page }) => {
+    await dashboardFixture(page);
+    await page.route('**/api/hosts**', async (route) => {
+      if (new URL(route.request().url()).pathname.endsWith('/credentials')) {
+        return route.fulfill({ status: 500, json: { error: '测试凭据读取失败' } });
+      }
+      const hosts = failure === 'host-missing' && route.request().frame().parentFrame() ? [] : [host];
+      return route.fulfill({ json: { hosts } });
+    });
+    await page.locator('#host-list').getByRole('button', { name: '连接', exact: true }).click();
+    const session = page.frameLocator('#session-frame-host iframe');
+    await expect(session.locator('#connection-panel')).toBeVisible();
+    await expect(session.locator('#form-error')).toBeVisible();
+    await expect(session.locator('#form-error')).toHaveText(failure === 'host-missing' ? '找不到请求的主机。' : '测试凭据读取失败');
+    await expect(page.locator('.session-tab')).toHaveCount(1);
+    await page.locator('.session-tab-close').click();
+    await expect(page.locator('.session-tab')).toHaveCount(0);
+    await expect(page.locator('#session-frame-host iframe')).toHaveCount(0);
+    await expect(page.locator('#session-frame-host')).toBeHidden();
+    await expect(page.locator('#app')).toBeHidden();
+    await expect(page.locator('#dashboard')).toBeVisible();
+    await expect(page.locator('#session-home')).toHaveAttribute('aria-current', 'page');
+  });
+}
 
 test('加号单击新建 SSH，长按与键盘菜单选择 SFTP', async ({ page }) => {
   await dashboardFixture(page);
