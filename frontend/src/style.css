@@ -269,7 +269,8 @@ html[data-theme='dark'] .session-home[aria-current='page'] {
 .session-tab {
   position: relative;
   cursor: pointer;
-  flex: 0 0 230px;
+  width: 230px;
+  flex: 0 0 auto;
   justify-content: space-between;
   gap: 8px;
   padding: 0 7px 0 11px;
@@ -403,7 +404,7 @@ body[data-session-frame='true'] .panel-scrim { inset: 0; }
   .session-brand .brand-wordmark { display: none; }
   .session-home { padding-inline: 8px; }
   .session-home > span:last-child { display: none; }
-  .session-tab { flex-basis: 125px; }
+  .session-tab { width: 125px; }
   .icon-button.session-menu-toggle { display: grid; margin-left: auto; }
   .session-button-group {
     position: fixed;
