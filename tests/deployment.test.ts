@@ -231,6 +231,33 @@ test('Actions asks for email, keeps Token private and uses the shared deploy ent
   assert.equal(workflow.includes('wrangler d1 migrations apply'), false);
 });
 
+test('CI checks dev pushes and main PRs without deployment credentials', async () => {
+  const ci = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  assert.match(ci, /push:\s+branches:\s+- dev/);
+  assert.match(ci, /pull_request:\s+branches:\s+- main/);
+  assert.ok(ci.includes("github.event_name == 'pull_request' && 'PR checks' || 'Dev checks'"));
+  assert.ok(ci.includes('contents: read'));
+  assert.ok(ci.includes('persist-credentials: false'));
+  assert.ok(ci.includes('run: npm run check'));
+  assert.ok(ci.includes('npm run test:browser -- --workers=2'));
+  assert.equal(ci.includes('secrets.'), false);
+  assert.equal(ci.includes('pull_request_target:'), false);
+  assert.equal(ci.includes('run: npm run deploy'), false);
+});
+
+test('Deploy requires main and a merged commit without repeating CI checks', async () => {
+  const deploy = await readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+  assert.match(deploy, /push:\s+branches:\s+- main/);
+  assert.ok(deploy.includes('"${GITHUB_REF}" != "refs/heads/main"'));
+  assert.ok(deploy.includes('fetch-depth: 0'));
+  assert.ok(deploy.includes('git merge-base --is-ancestor HEAD refs/remotes/origin/main'));
+  assert.ok(deploy.indexOf('git merge-base') < deploy.indexOf('run: npm ci'));
+  assert.ok(deploy.includes('run: npm run deploy:validate'));
+  assert.equal(deploy.includes('run: npm run check'), false);
+  assert.equal(deploy.includes('npm run test'), false);
+  assert.equal(deploy.includes('playwright install'), false);
+});
+
 test('Force Update selects a marked official commit and deploys the same SHA directly', async () => {
   const deploy = await readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
   const update = await readFile(new URL('../.github/workflows/force-update.yml', import.meta.url), 'utf8');

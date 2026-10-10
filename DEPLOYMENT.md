@@ -77,7 +77,7 @@ API Token 只存 GitHub Secret，不放普通变量、代码或命令行输入�
 
 同源路径、HttpOnly Cookie 和新窗口不是沙箱；恶意脚本仍可代发主站 SSH API。主站 Cookie 不会转发给远端，但不防同源 JavaScript 调用接口。界面会显示风险警告并要求信任确认；连接期间禁用切换，用户需先点击停止再切换。未部署预览 Worker 时选择 isolated 不会回退到标准转发，而是明确拒绝连接。
 
-普通 push 或 `Deploy` 只发布主 Worker，不新建 preview。需要 isolated 时，运行 Actions **部署预览 Worker**，该 workflow 先更新主 Worker 配置，再调用原可复用 Deploy 并传入 `deploy_preview=true`，仅该流程设置 `DEPLOY_PREVIEW_WORKER`；可选填写 `PREVIEW_DOMAIN`，留空默认 `<WORKER_NAME>-preview.<账户子域>.workers.dev`。它发布只绑定 `SSH_SESSIONS` 的预览 Worker，不绑定 D1、ASSETS、加密密钥或主站接口，并设置主站 `PREVIEW_ORIGIN`。已有 `PREVIEW_ORIGIN` 在常规发布中保留，不自动删除；普通发布不会更新预览代码，修改预览实现时须重新运行该 workflow，现有预览 Worker 无需重新部署即可在界面切换。
+push 到 `main` 或在 `main` 上运行 `Deploy` 只发布主 Worker，不新建 preview。需要 isolated 时，在 Actions **部署预览 Worker** 中选择 `main` 并运行；该 workflow 调用可复用 Deploy 并传入 `deploy_preview=true`，先更新主 Worker 配置，再发布预览 Worker，仅该流程设置 `DEPLOY_PREVIEW_WORKER`；可选填写 `PREVIEW_DOMAIN`，留空默认 `<WORKER_NAME>-preview.<账户子域>.workers.dev`。它发布只绑定 `SSH_SESSIONS` 的预览 Worker，不绑定 D1、ASSETS、加密密钥或主站接口，并设置主站 `PREVIEW_ORIGIN`。已有 `PREVIEW_ORIGIN` 在常规发布中保留，不自动删除；普通发布不会更新预览代码，修改预览实现时须重新运行该 workflow，现有预览 Worker 无需重新部署即可在界面切换。
 
 主站与预览必须跨 site：自定义域名加默认 `workers.dev` 可行；自定义域名加同站自定义域名会拒绝；同账户双 `workers.dev` 也会拒绝，主站只有 `workers.dev` 时需独立自定义域名。专用 preview 同一 origin 内不同目标网站不相互隔离，切换前关闭旧预览窗口。
 
@@ -85,9 +85,17 @@ API Token 只存 GitHub Secret，不放普通变量、代码或命令行输入�
 
 标准实现改写 HTML 属性、`srcset`、CSS URL、`Location`、Cookie 名称与 Path，并注入常见 `fetch`/XHR/EventSource/history/cookie 兼容脚本；不承诺任意网站透明代理。严格 CSP、动态 ES 模块、写死的 location、复杂 inline CSS/JS 框架仍可能需要 baseURL 配置，优先使用 isolated。仅支持 HTTP/SSE、相对资源、表单、目标 Cookie、重定向和 HTTP Basic 鉴权；HTTP 上游限 `127.0.0.1`，上传 16 MiB，CSS 重写 2 MiB，最多 24 个并发通道，通道闲置 60 秒。HTTPS 上游、WebSocket、Service Worker、写死 `localhost`、OAuth 固定 callback 不支持；SFTP 上传仍为 64 MiB。
 
-## 自动执行顺序
+## 代码检查与 main 分支保护
 
-1. 校验本地配置，运行类型检查、测试、前端构建和 Wrangler dry-run。
+开发时 push 到 `dev`，CI 自动执行类型检查、单元测试、前端构建、Wrangler dry-run，以及桌面和手机浏览器回归。任何来源分支向 `main` 提交或更新 PR 时，CI 对 PR 合并结果执行同样的检查；这两种检查分别显示为 `Dev checks` 和 `PR checks`，不使用部署凭据。已有 PR 的 dev push 会分别触发两次检查，因为开发分支与合并结果可能不同。
+
+CI 上线并实际产生 `PR checks` 后，在 GitHub 的 main 分支保护中要求：必须通过 PR 合并、`PR checks` 成功、分支与最新 main 同步；禁止强制推送和删除，并让管理员也遵守规则。个人维护时可不强制他人批准，不限制 PR 来源分支。分支保护属于仓库设置，工作流文件本身不会自动启用这些规则。
+
+合入 `main` 后仅触发部署，不重复完整代码检查。手动 `Deploy` 和 **部署预览 Worker** 也必须选择 `main`；可复用 Deploy 的 `deployment_ref` 必须已包含在 main 历史中，否则明确失败。发布中的必要构建由 Wrangler 执行。本地 `npm run deploy` 不自动运行 CI 检查，手动本地发布前应自行确认代码已通过验证。
+
+## 自动部署顺序
+
+1. 确认工作流来自 main、待部署提交已合入 main，并校验部署配置；代码检查已在 PR 阶段完成。
 2. 自动发现唯一账户（显式账户 ID 优先），读取现有 Worker Secret **名称**，不尝试读取密钥明文。
 3. 有 `CUSTOM_DOMAIN` 时使用该入口；否则读取账户 `workers.dev` 子域，未注册时自动注册确定性名称。已有子域不改名，避免影响其他 Worker。
 4. 根据 `AUTH_PROVIDER` 仅准备所选认证：Cloudflare 普通重部署核对实际入口仍有 Access 网关，首次启用或从 GitHub 切回时核对应用、策略、Team Domain 与 AUD；GitHub 首次解析并固定管理员数字 ID，后续直接复用。
@@ -112,6 +120,8 @@ EdgeSSH-Auto-Update: true
 不存在标记时，工作流成功结束且不改代码、不部署。存在标记时，它选择拓扑顺序中最新的标记提交，以 `force-with-lease` 将 Fork 的 `main` 精确更新到该 SHA，然后直接调用 `Deploy` 的可复用部署任务并检出同一个 SHA。部署不依赖这次推送再次触发工作流，因此不会受 GitHub 防递归机制影响。
 
 此能力用于维护者发布必须尽快应用的安全或兼容性更新。精确同步会移除 Fork 在 `main` 上独有的提交；需要长期维护的自定义改动应放在其他分支。若检测期间 `main` 又被人工更新，lease 会让本次任务停止，下一次运行会基于新版本重新检查。仓库或组织策略还必须允许工作流使用 `contents: write`，否则无法更新分支。
+
+采用上述 main 分支保护时，应保持 `Force Update` 禁用，通过 PR 接收上游更新。它直接强制写入 main，与该流程不兼容；不要为它添加分支保护绕过权限，也不要依赖 Deploy 为直接更新的代码补跑测试。
 
 ## 其他可选配置
 
