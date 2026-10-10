@@ -541,6 +541,8 @@ Preview Worker 和 EdgeSSH 主界面运行在不同的 Origin 上,能减少被�
 
 # 本地开发
 
+开发文档：[架构总览与模块导航](docs/architecture/overview.md) · [开发约定](docs/development/working-agreements.md) · [测试与验证](docs/development/testing.md)。修改源码前，先阅读开发约定和相关模块目录中的 `README.md`，再按链接查看详细设计与测试说明。
+
 Requirements:
 
 ```text
