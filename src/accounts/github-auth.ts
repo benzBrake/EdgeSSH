@@ -3,6 +3,7 @@ import type { Env } from '../types.ts';
 import { APIError, apiFailure } from './http.ts';
 import { secureResponse } from '../http-security.ts';
 import { workspaceState } from './workspace.ts';
+import { encryptionKeyBytes } from './crypto.ts';
 
 const sessionCookie = '__Host-edgessh-session';
 const flowCookie = '__Host-edgessh-oauth';
@@ -30,7 +31,8 @@ function setCookie(name: string, value: string, maxAge: number): string {
 
 // 使用 HKDF 做用途隔离，不直接把资料加密密钥用于签名，也不新增用户需要维护的密钥。
 async function signingKey(secret: string): Promise<Uint8Array> {
-  const material = await crypto.subtle.importKey('raw', new Uint8Array(base64url.decode(secret)), 'HKDF', false, ['deriveBits']);
+  // ENCRYPTION_KEY is generated and validated as standard Base64, not Base64URL.
+  const material = await crypto.subtle.importKey('raw', encryptionKeyBytes(secret), 'HKDF', false, ['deriveBits']);
   return new Uint8Array(await crypto.subtle.deriveBits({
     name: 'HKDF', hash: 'SHA-256', salt: encoder.encode('edgessh:v1'),
     info: encoder.encode('github-oauth-cookie'),

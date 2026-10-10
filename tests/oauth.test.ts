@@ -130,6 +130,22 @@ test('OAuth starts with random state, S256 PKCE and no privileged scopes', async
   assert.equal(first.authorization.toString().includes(baseEnv.GH_CLIENT_SECRET), false);
 });
 
+test('OAuth accepts standard Base64 encryption keys containing + and / without changing stored data', async () => {
+  for (const byte of [251, 255]) {
+    for (const padded of [true, false]) {
+      const runtime = environment();
+      const encoded = Buffer.alloc(32, byte).toString('base64');
+      runtime.env.ENCRYPTION_KEY = padded ? encoded : encoded.replace(/=+$/, '');
+      const secret = { password: 'existing-host-password' };
+      const ciphertext = await encryptHost(secret, runtime.env.ENCRYPTION_KEY, runtime.state.account_id, 'host-1');
+      const { cookie } = await login(runtime.env);
+      const account = await currentAccount(request('/api/auth/me', cookie), runtime.env);
+      assert.equal(account.username, 'administrator');
+      assert.deepEqual(await decryptHost(ciphertext, runtime.env.ENCRYPTION_KEY, account.id, 'host-1'), secret);
+    }
+  }
+});
+
 test('callback binds state to its browser cookie before any token exchange', async () => {
   const flow = await start();
   let calls = 0;
