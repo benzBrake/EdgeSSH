@@ -700,6 +700,7 @@ if (!isSessionFrame) {
       return;
     }
     if (message.type === 'open-settings') { showSettings(); return; }
+    if (message.type === 'open-home') { activateEmbeddedSession(null); return; }
     if (message.type === 'open-files') { openEmbeddedSession({ kind: 'sftp' }); return; }
     if (message.type === 'close-empty') {
       closeEmbeddedSession(message.sessionId);
@@ -756,6 +757,21 @@ if (!isSessionFrame) {
     if (event.data.type === 'theme' && (event.data.theme === 'light' || event.data.theme === 'dark')) document.documentElement.dataset.theme = event.data.theme;
   });
 }
+
+// Delegate workspace links so dynamically added home links also preserve sessions.
+document.addEventListener('click', (event) => {
+  if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
+  if (!link || link.hasAttribute('download') || (link.target && link.target.toLowerCase() !== '_self')) return;
+  const url = new URL(link.href);
+  if (url.origin !== location.origin || (url.pathname !== '/' && url.pathname !== location.pathname)) return;
+  if (url.search && url.search !== location.search) return;
+  // In-page fragments already navigate without reloading the document.
+  if (url.hash && url.pathname === location.pathname && url.search === location.search) return;
+  event.preventDefault();
+  if (isSessionFrame) postSessionEvent('open-home');
+  else activateEmbeddedSession(null);
+});
 
 function demoWrite(text: string): void { terminal.write(text.replace(/\n/g, '\r\n')); }
 
