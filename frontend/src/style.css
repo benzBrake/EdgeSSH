@@ -171,6 +171,17 @@ html[data-theme='light'] body:is([data-view='dashboard'], [data-view='snippets']
   font-size: 12px;
 }
 
+.session-home > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .session-brand {
   flex: 0 0 auto;
   align-self: center;
