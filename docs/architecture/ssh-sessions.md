@@ -13,6 +13,7 @@
 - DO 内部路由为 `/ticket`、`/connect`、`/sftp`、`/processes`、`/forward`、`/forward-http`、`/preview-launch`、`/preview-http`；对外路由由主/预览 Worker 控制，不能直接映射为匿名 HTTP 接口。
 - 会话阶段为 version → kex → host-confirm（如需）→ auth → pty → shell → ready → closed；forward 模式通过 `isForwardReady`/`openForward` 提供 direct-tcpip 通道。
 - Host Key 签名与指纹确认发生在发送 SSH 凭据之前。`SSHAuthDefectError` 表示凭据或信任的确定性失败，通知前端 `retryable: false`，并以 4001 关闭；不要把这类失败改成自动重试。
+- 初始握手按 KEXINIT → ECDH 回复及主机验证 → NEWKEYS 单向推进；重复或乱序握手消息显式失败，不能重新初始化同一密钥的加密器。收到服务端 NEWKEYS 前拒绝连接层消息；错误的 `first_kex_packet_follows` 猜测只跳过一个 KEX 方法包。
 - SFTP/进程 attachment token 分别绑定主 WebSocket，在主 SSH 会话存活期间可重复使用，支持辅助通道断线重连；主会话清理时 token 失效，并清理辅助通道、pending open、定时器与 TCP Socket。
 - DO 重建后无法从内存恢复活动 SSH 对象，已有连接显式关闭并要求重连。存储中的票据与 account-id 不等于持久化了 SSH 会话。
 
@@ -24,4 +25,4 @@ SFTP v3 文件传输上限 64 MiB，块大小 64 KiB，路径/目录项/响应�
 
 ## 依赖与验证
 
-协议层见 [ssh](../../src/ssh/README.md)，forward 授权与 HTTP 桥接见 [forwarding](../../src/forwarding/README.md)。对应 `tests/ssh-session-failure.test.ts`、`forwarding-failure.test.ts`、`system-info.test.ts`、`auth.test.ts`，浏览器侧有 ssh-failure/files/forwarding 回归。现有测试用内存 bundle 与 socket mock 验证真实类，不要求真实 Cloudflare 连接。
+协议层见 [ssh](../../src/ssh/README.md)，forward 授权与 HTTP 桥接见 [forwarding](../../src/forwarding/README.md)。对应 `tests/ssh-handshake.test.ts`、`ssh-session-failure.test.ts`、`forwarding-failure.test.ts`、`system-info.test.ts`、`auth.test.ts`，浏览器侧有 ssh-failure/files/forwarding 回归。握手测试使用真实签名与协商加密验证重放拒绝和正常握手；现有测试用内存 bundle 与 socket mock 验证真实类，不要求真实 Cloudflare 连接。

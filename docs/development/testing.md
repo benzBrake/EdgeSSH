@@ -14,7 +14,7 @@
 | --- | --- |
 | 认证与加密 | auth、oauth、encryption |
 | 云端数据与设置 | snippets、settings、forward-rules、location |
-| SSH 与终端行为 | ssh-session-failure、ssh-keygen、ws-reconnect、terminal-tools、system-info、file-kind |
+| SSH 与终端行为 | ssh-handshake、ssh-session-failure、ssh-keygen、ws-reconnect、terminal-tools、system-info、file-kind |
 | 转发协议与授权 | forwarding-auth/http/protocol/routes/mounted/failure |
 | 发布编排 | deployment、deployment-bootstrap、deployment-auth |
 | 浏览器工作台 | browser/dashboard、navigation、saved-connection、settings、snippets、terminal-tools、ssh-failure |
