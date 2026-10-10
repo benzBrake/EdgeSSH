@@ -2085,8 +2085,15 @@ async function issueTicket(signal: AbortSignal): Promise<{ ticket: string; sessi
 function createSshReconnectFactory(): (attempt: number) => Promise<WebSocket> {
   return async (attempt: number): Promise<WebSocket> => {
     const params = reconnectParams!;
+    const generation = ++connectGeneration;
     const abortController = new AbortController();
-    const { ticket, sessionId } = await issueTicket(abortController.signal);
+    authorizationAbort = abortController;
+    const { ticket, sessionId } = await issueTicket(abortController.signal).finally(() => {
+      if (authorizationAbort === abortController) authorizationAbort = null;
+    });
+    if (generation !== connectGeneration || reconnectParams !== params) {
+      throw new DOMException('Connection superseded', 'AbortError');
+    }
     currentSessionId = sessionId;
 
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -2095,7 +2102,6 @@ function createSshReconnectFactory(): (attempt: number) => Promise<WebSocket> {
     url.searchParams.set('ticket', ticket);
     url.searchParams.set('session', sessionId);
 
-    const generation = ++connectGeneration;
     const ws = new WebSocket(url);
     ws.binaryType = 'arraybuffer';
 
@@ -2132,6 +2138,7 @@ function createSshReconnectFactory(): (attempt: number) => Promise<WebSocket> {
     ws.addEventListener('message', (socketEvent) => {
       void handleSocketData(socketEvent.data as string | ArrayBuffer | Blob, ws, generation);
     });
+    ws.addEventListener('close', (closeEvent) => handleSshClose(ws, closeEvent));
 
     ws.addEventListener('error', () => {
       if (socket !== ws) return;
@@ -2162,13 +2169,13 @@ function handleSshReconnectLog(entry: ReconnectLogEntry): void {
     // Reconnect exhausted — perform full cleanup that was deferred.
     const reason = bilingual('SSH 重连失败，已达最大重试次数。', 'SSH reconnect failed; maximum retries reached.');
     event(reason, 'disconnect', true);
-    updateConnectionStatus(messageTranslation(reason));
-    setState('error');
+    sshReconnectManager?.reset();
+    sshReconnectManager = null;
+    reconnectParams = null;
+    failActiveConnection(socket, 'SSH reconnect failed', messageTranslation(reason));
     toast(reason, 'error');
-    fileManager.reset();
-    fileTree?.setReady(false);
-    processManager.reset();
   } else if (entry.event === 'reconnect_attempt') {
+    setState('connecting');
     updateConnectionStatus(localized(
       `正在重连 SSH（${entry.attempt}/${entry.maxAttempts}）…`,
       `Reconnecting SSH (${entry.attempt}/${entry.maxAttempts})…`,
@@ -2313,50 +2320,7 @@ async function connect(): Promise<void> {
       toast(localize(message), 'error');
       failActiveConnection(activeSocket, 'WebSocket transport error', message);
     });
-    activeSocket.addEventListener('close', (closeEvent) => {
-      if (socket !== activeSocket) return;
-      socket = null;
-      currentSessionId = '';
-      pendingHistory = null;
-      currentExpectedFingerprint = '';
-      currentRememberedFingerprint = '';
-      const wasActive = connectionState === 'connected';
-      const isUnexpected = closeEvent.code !== 1000 && closeEvent.code !== 1005;
-
-      if (isUnexpected && sshReconnectManager) {
-        // The reconnect manager will attempt reconnection autonomously.
-        // Skip tearing down child connections — they each have their own
-        // reconnect logic that fires independently.
-        stopTimers();
-        resetNetworkMetric();
-        clearHostKeyPrompt();
-        invalidateHistoryPasswordLoad();
-        const reason = bilingual('SSH 连接断开，正在重连…', 'SSH connection lost; reconnecting…');
-        event(reason, 'disconnect', true);
-        updateConnectionStatus(messageTranslation(reason));
-        setState('connecting');
-        if (wasActive) toast(reason, 'error');
-        return;
-      }
-
-      // Normal close or reconnect not available — full cleanup.
-      stopTimers();
-      fileManager.reset();
-      fileTree?.setReady(false);
-      processManager.reset();
-      resetNetworkMetric();
-      clearHostKeyPrompt();
-      invalidateHistoryPasswordLoad();
-      const reason = closeEvent.reason
-        ? bilingualServerMessage(closeEvent.reason)
-        : closeEvent.code === 1000
-          ? bilingual('会话已关闭。', 'Session closed.')
-          : bilingual(`会话已关闭（${closeEvent.code}）。`, `Session closed (${closeEvent.code}).`);
-      event(reason, 'disconnect', isUnexpected);
-      updateConnectionStatus(messageTranslation(reason));
-      setState(isUnexpected ? 'error' : 'idle');
-      if (wasActive) toast(reason, isUnexpected ? 'error' : 'info');
-    });
+    activeSocket.addEventListener('close', (closeEvent) => handleSshClose(activeSocket, closeEvent));
   } catch (error) {
     if (authorizationAbort === abortController) authorizationAbort = null;
     if (generation !== connectGeneration) return;
@@ -2373,6 +2337,43 @@ async function connect(): Promise<void> {
     toast(message, 'error');
     setState('error');
   }
+}
+
+function handleSshClose(activeSocket: WebSocket, closeEvent: CloseEvent): void {
+  if (socket !== activeSocket) return;
+  socket = null;
+  currentSessionId = '';
+  pendingHistory = null;
+  currentExpectedFingerprint = '';
+  currentRememberedFingerprint = '';
+  const wasActive = connectionState === 'connected';
+  const isUnexpected = closeEvent.code !== 1000 && closeEvent.code !== 1005;
+  stopTimers();
+  resetNetworkMetric();
+  clearHostKeyPrompt();
+  invalidateHistoryPasswordLoad();
+
+  if (isUnexpected && sshReconnectManager) {
+    const reason = bilingual('SSH 连接断开，正在重连…', 'SSH connection lost; reconnecting…');
+    event(reason, 'disconnect', true);
+    updateConnectionStatus(messageTranslation(reason));
+    setState('connecting');
+    if (wasActive) toast(reason, 'error');
+    return;
+  }
+
+  fileManager.reset();
+  fileTree?.setReady(false);
+  processManager.reset();
+  const reason = closeEvent.reason
+    ? bilingualServerMessage(closeEvent.reason)
+    : closeEvent.code === 1000
+      ? bilingual('会话已关闭。', 'Session closed.')
+      : bilingual(`会话已关闭（${closeEvent.code}）。`, `Session closed (${closeEvent.code}).`);
+  event(reason, 'disconnect', isUnexpected);
+  updateConnectionStatus(messageTranslation(reason));
+  setState(isUnexpected ? 'error' : 'idle');
+  if (wasActive) toast(reason, isUnexpected ? 'error' : 'info');
 }
 
 function confirmEndSession(): boolean {
@@ -2837,6 +2838,22 @@ async function initialize(): Promise<void> {
     ui.initialCommand.closest('label')!.hidden = true;
     sftpWorkbench = new SftpWorkbench(ui.terminalCard, ui.fileManagerPanel, fileManager, {
       disconnect: () => { if (confirmEndSession()) disconnect(); },
+      reconnect: () => {
+        if (connectionState === 'connected') {
+          try { fileManager.reconnect(); }
+          catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            sftpWorkbench?.setMessage(message, true);
+            event(message, 'sftp', true);
+          }
+          return;
+        }
+        if (!ui.host.value.trim() || !ui.username.value.trim()) { setPanelOpen(true); return; }
+        const profile = profiles.find(item => item.id === ui.profileId.value && passwordContext(item) === targetKey()
+          && item.authMethod === authMethod() && !passwordDirty);
+        if (profile) void connectSavedProfile(profile);
+        else void connect();
+      },
       fitTerminal: () => fitTerminal(true),
       focusTerminal: () => terminal.focus(),
       onState: (state) => postSessionEvent('state', { state }),

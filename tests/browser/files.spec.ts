@@ -182,6 +182,11 @@ for (const failure of ['credentials', 'authorization']) {
     await expect(session.locator('#sftp-connection-state')).toHaveText('连接失败');
     await expect(session.locator('#file-upload')).toBeDisabled();
     await expect(page.locator('.session-tab-status')).toHaveClass(/error/);
+    if (failure === 'credentials') await page.route('**/api/hosts/alpha/credentials', route => route.fulfill({ json: { password: 'test-only' } }));
+    else await page.route('**/api/session', route => route.fulfill({ json: { ticket: 'test-ticket', sessionId: crypto.randomUUID() } }));
+    await session.locator('#sftp-reconnect').click();
+    await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+    await expect(session.locator('#sftp-connection-message')).toBeHidden();
   });
 }
 
@@ -242,7 +247,7 @@ test('关闭读取凭据中的标签后，迟到结果不会启动会话', async
   expect(fixture.sshSockets).toHaveLength(0);
 });
 
-test('确认主动断开后取消传输并可在新标签重连', async ({ page }) => {
+test('确认主动断开后取消传输并可在当前标签重连', async ({ page }, testInfo) => {
   const fixture = await fileFixture(page, { holdUpload: true });
   const session = await connectFiles(page);
   await expect(session.locator('#file-upload')).toBeEnabled();
@@ -254,12 +259,99 @@ test('确认主动断开后取消传输并可在新标签重连', async ({ page 
   await expect(session.locator('#file-manager-progress')).toBeHidden();
   await expect(page.locator('.session-tab')).toHaveCount(1);
   expect(fixture.calls.filter(call => call.type === 'sftp_close')).toHaveLength(1);
-  await page.locator('.session-tab-close').click();
-  await expect(page.locator('.session-tab')).toHaveCount(0);
-  await page.locator('#rail-files').click();
-  await connectFiles(page, 'beta');
+  await expect(session.locator('#sftp-disconnect')).toBeHidden();
+  await expect(session.locator('#sftp-reconnect')).toBeEnabled();
+  await page.screenshot({ path: testInfo.outputPath('sftp-reconnect.png') });
+  await session.locator('#sftp-reconnect').click();
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+  await expect(session.locator('#file-upload')).toBeEnabled();
+  await expect(session.locator('#sftp-reconnect')).toBeHidden();
+  await expect(page.locator('.session-tab')).toHaveCount(1);
+  await expect(page.locator('.session-tab-label')).toHaveText('SFTP · Tokyo production');
+  expect(fixture.sshSockets).toHaveLength(2);
+  expect(fixture.sftpSockets).toHaveLength(2);
+  expect(fixture.calls.filter(call => call.type === 'connect').map(call => call.host)).toEqual(['192.0.2.10', '192.0.2.10']);
+});
+
+test('SSH 连续断线会更新状态并自动重连，远端关闭后可手动重连', async ({ page }) => {
+  const fixture = await fileFixture(page);
+  const session = await connectFiles(page);
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+  for (let index = 0; index < 2; index++) {
+    fixture.sshSockets[index].close({ code: 1011, reason: 'Transport interrupted' });
+    await expect(session.locator('#sftp-connection-state')).toHaveText('正在连接 SSH');
+    await expect(session.locator('#sftp-reconnect')).toBeHidden();
+    await expect.poll(() => fixture.sshSockets.length).toBe(index + 2);
+    await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+  }
+  fixture.sshSockets[2].close({ code: 1000, reason: 'Session closed' });
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 未连接');
+  await expect(session.locator('#file-upload')).toBeDisabled();
+  await session.locator('#sftp-reconnect').click();
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+  expect(fixture.sshSockets).toHaveLength(4);
+  expect(fixture.sftpSockets).toHaveLength(4);
+});
+
+test('SSH 自动重试耗尽后可在当前标签手动重连', async ({ page }) => {
+  const fixture = await fileFixture(page);
+  const session = await connectFiles(page);
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+  let authorizationFailed = true;
+  await page.route('**/api/session', route => route.fulfill(authorizationFailed
+    ? { status: 503, json: { error: 'Session temporarily unavailable' } }
+    : { json: { ticket: 'test-ticket', sessionId: crypto.randomUUID() } }));
+  fixture.sshSockets[0].close({ code: 1011, reason: 'Transport interrupted' });
+  await expect(session.locator('#sftp-connection-state')).toHaveText('连接失败', { timeout: 15000 });
+  await expect(session.locator('#file-upload')).toBeDisabled();
+  await expect(session.locator('#sftp-connection-message')).toContainText('已达最大重试次数');
+  authorizationFailed = false;
+  await session.locator('#sftp-reconnect').click();
   await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
   expect(fixture.sshSockets).toHaveLength(2);
+});
+
+test('取消授权中的 SSH 自动重连后，迟到响应不会启动连接', async ({ page }) => {
+  const fixture = await fileFixture(page);
+  const session = await connectFiles(page);
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+  let finish!: () => void;
+  const pending = new Promise<void>(resolve => { finish = resolve; });
+  let authorizationStarted = false;
+  let authorizationFinished = false;
+  await page.route('**/api/session', async route => {
+    authorizationStarted = true;
+    await pending;
+    await route.fulfill({ json: { ticket: 'test-ticket', sessionId: crypto.randomUUID() } });
+    authorizationFinished = true;
+  });
+  fixture.sshSockets[0].close({ code: 1011, reason: 'Transport interrupted' });
+  await expect.poll(() => authorizationStarted).toBe(true);
+  await expect(session.locator('#sftp-disconnect')).toHaveText('取消连接');
+  await session.locator('#sftp-disconnect').click();
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 未连接');
+  finish();
+  await expect.poll(() => authorizationFinished).toBe(true);
+  await page.waitForTimeout(1400);
+  expect(fixture.sshSockets).toHaveLength(1);
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 未连接');
+  await session.locator('#sftp-reconnect').click();
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+  expect(fixture.sshSockets).toHaveLength(2);
+});
+
+test('SFTP 服务关闭后单独重连文件通道', async ({ page }) => {
+  const fixture = await fileFixture(page);
+  const session = await connectFiles(page);
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+  fixture.sftpSockets[0].send(JSON.stringify({ type: 'sftp_closed', message: 'SFTP channel closed' }));
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 连接失败');
+  await expect(session.locator('#file-upload')).toBeDisabled();
+  await session.locator('#sftp-reconnect').click();
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+  await expect(session.locator('#file-upload')).toBeEnabled();
+  expect(fixture.sshSockets).toHaveLength(1);
+  expect(fixture.sftpSockets).toHaveLength(2);
 });
 
 test('SSH 就绪不冒充 SFTP 就绪，文件通道重连独立', async ({ page }) => {
@@ -279,14 +371,20 @@ test('SSH 就绪不冒充 SFTP 就绪，文件通道重连独立', async ({ page
   expect(fixture.sshSockets).toHaveLength(1);
 });
 
-test('文件通道初始化失败显示根因，终端仍可展开', async ({ page }) => {
-  await fileFixture(page, { sftpError: true });
+test('文件通道初始化失败显示根因并可单独重试，终端仍可展开', async ({ page }) => {
+  const options = { sftpError: true };
+  const fixture = await fileFixture(page, options);
   const session = await connectFiles(page);
   await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 连接失败');
   await expect(session.locator('#file-manager-error')).toContainText('SFTP subsystem unavailable');
   await expect(session.locator('#file-upload')).toBeDisabled();
   await session.locator('#sftp-terminal-collapse').click();
   await expect(session.locator('#terminal-tools')).toBeVisible();
+  options.sftpError = false;
+  await session.locator('#sftp-reconnect').click();
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+  expect(fixture.sshSockets).toHaveLength(1);
+  expect(fixture.sftpSockets).toHaveLength(2);
 });
 
 test('多个 SFTP 标签独立，SSH 文件 dock 保留', async ({ page }) => {
@@ -365,6 +463,11 @@ test('临时 SFTP 连接复用表单、同步语言主题和终端分隔条', as
   expect(files.y + files.height).toBeLessThanOrEqual(pane.y);
   expect(fixture.sshSockets).toHaveLength(1);
   expect(errors).toEqual([]);
+  await session.locator('#sftp-disconnect').click();
+  await expect(session.locator('#sftp-reconnect')).toHaveText('Reconnect');
+  await session.locator('#sftp-reconnect').click();
+  await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP connected');
+  expect(fixture.sshSockets).toHaveLength(2);
 });
 
 test('320px 到桌面中英文布局保持文件状态栏可见', async ({ page }, testInfo) => {

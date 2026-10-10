@@ -6,6 +6,7 @@ import './sftp-workbench.css';
 
 interface SftpWorkbenchActions {
   disconnect(): void;
+  reconnect(): void;
   fitTerminal(): void;
   focusTerminal(): void;
   onState(state: ConnectionControlState): void;
@@ -17,6 +18,7 @@ export class SftpWorkbench {
   readonly terminalPane: HTMLElement;
   private readonly terminalToggle: HTMLButtonElement;
   private readonly disconnectButton: HTMLButtonElement;
+  private readonly reconnectButton: HTMLButtonElement;
   private readonly status: HTMLElement;
   private readonly message: HTMLElement;
   private readonly divider: HTMLElement;
@@ -35,6 +37,7 @@ export class SftpWorkbench {
     connectionActions.className = 'sftp-connection-actions';
     connectionActions.innerHTML = `
       <span id="sftp-connection-state" class="sftp-state" role="status" aria-live="polite"></span>
+      <button id="sftp-reconnect" class="small-button" type="button" hidden></button>
       <button id="sftp-disconnect" class="small-button" type="button"></button>`;
     root.querySelector<HTMLElement>('.session-target')!.hidden = true;
     panel.querySelector('.file-statusbar')!.append(connectionActions);
@@ -54,6 +57,7 @@ export class SftpWorkbench {
       button.replaceChildren(createElement(icon, { 'aria-hidden': 'true' }));
     }
     this.disconnectButton = connectionActions.querySelector('#sftp-disconnect')!;
+    this.reconnectButton = connectionActions.querySelector('#sftp-reconnect')!;
     this.status = connectionActions.querySelector('#sftp-connection-state')!;
     this.message = document.createElement('span');
     this.message.id = 'sftp-connection-message';
@@ -91,6 +95,7 @@ export class SftpWorkbench {
     terminalHeader.querySelector('.terminal-actions')!.append(collapse);
     this.terminalToggle.addEventListener('click', () => this.setTerminalOpen(!this.terminalOpen));
     this.disconnectButton.addEventListener('click', actions.disconnect);
+    this.reconnectButton.addEventListener('click', actions.reconnect);
     this.bindResize();
     const observer = new ResizeObserver(() => { if (this.terminalOpen) this.resizeTerminal(); });
     for (const target of [root, panel.querySelector('.file-toolbar')!, panel.querySelector('.file-statusbar')!]) observer.observe(target);
@@ -142,7 +147,14 @@ export class SftpWorkbench {
           : this.sshState === 'error' ? localize('连接失败', 'Connection failed')
             : this.sshState === 'disconnecting' ? localize('正在断开…', 'Disconnecting…') : labels.idle;
     this.status.dataset.state = effective;
+    const reconnectLabel = localize('重新连接', 'Reconnect');
+    const reconnectText = document.createElement('span');
+    reconnectText.textContent = reconnectLabel;
+    this.reconnectButton.replaceChildren(createElement(RefreshCw, { 'aria-hidden': 'true', width: '14', height: '14' }), reconnectText);
+    this.reconnectButton.title = reconnectLabel;
+    this.reconnectButton.hidden = this.preparing || (effective !== 'idle' && effective !== 'error');
     this.disconnectButton.textContent = this.preparing || this.sshState === 'connecting' ? localize('取消连接', 'Cancel connection') : localize('断开', 'Disconnect');
+    this.disconnectButton.hidden = !this.preparing && (this.sshState === 'idle' || this.sshState === 'error');
     this.disconnectButton.disabled = !this.preparing && this.sshState !== 'connected' && this.sshState !== 'connecting';
     this.terminalToggle.disabled = this.preparing;
     this.actions.onState(effective);

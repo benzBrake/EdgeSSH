@@ -325,6 +325,11 @@ export class FileManager {
     });
   }
 
+  reconnect(): void {
+    if (!this.url) throw new Error(this.localize({ zh: '尚未收到文件服务连接地址。', en: 'No file service connection URL has been received.' }));
+    this.attach(this.url);
+  }
+
   init(): void {
     if (!this.isSocketOpen()) return;
     this.send({ type: 'sftp_init' });
