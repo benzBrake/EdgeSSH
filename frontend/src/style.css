@@ -324,6 +324,8 @@ html[data-theme='dark'] .session-home[aria-current='page'] {
 
 .session-tab-close:hover { background: var(--danger-dim); color: var(--danger); }
 
+body[data-view='workspace'] .session-tab-close:hover { background: var(--accent-dim); color: var(--accent); }
+
 .session-new {
   width: 32px;
   flex: 0 0 auto;
