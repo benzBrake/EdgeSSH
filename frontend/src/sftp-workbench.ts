@@ -1,4 +1,4 @@
-import { createElement, ChevronDown, ChevronUp, ArrowLeft, ArrowUp, House, RefreshCw, Upload, Download, FolderPlus, Pencil, Trash2 } from 'lucide';
+import { createElement, ChevronDown, ChevronUp, RefreshCw } from 'lucide';
 import type { FileManager, FileServiceState } from './file-manager';
 import type { ArboristFileList } from './file-list';
 import type { ConnectionControlState } from './ui-state';
@@ -41,21 +41,6 @@ export class SftpWorkbench {
       <button id="sftp-disconnect" class="small-button" type="button"></button>`;
     root.querySelector<HTMLElement>('.session-target')!.hidden = true;
     panel.querySelector('.file-statusbar')!.append(connectionActions);
-    for (const [id, icon] of [
-      ['file-back', ArrowLeft], ['file-up', ArrowUp], ['file-home', House], ['file-refresh', RefreshCw],
-      ['file-upload', Upload], ['file-download', Download], ['file-mkdir', FolderPlus], ['file-rename', Pencil], ['file-delete', Trash2],
-    ] as const) {
-      const button = panel.querySelector<HTMLButtonElement>(`#${id}`)!;
-      const zh = button.dataset.i18nZh ?? button.dataset.i18nAriaLabelZh!;
-      const en = button.dataset.i18nEn ?? button.dataset.i18nAriaLabelEn!;
-      delete button.dataset.i18nZh;
-      delete button.dataset.i18nEn;
-      button.dataset.i18nAriaLabelZh = button.dataset.i18nTitleZh = zh;
-      button.dataset.i18nAriaLabelEn = button.dataset.i18nTitleEn = en;
-      button.setAttribute('aria-label', actions.localize(zh, en));
-      button.title = actions.localize(zh, en);
-      button.replaceChildren(createElement(icon, { 'aria-hidden': 'true' }));
-    }
     this.disconnectButton = connectionActions.querySelector('#sftp-disconnect')!;
     this.reconnectButton = connectionActions.querySelector('#sftp-reconnect')!;
     this.status = connectionActions.querySelector('#sftp-connection-state')!;

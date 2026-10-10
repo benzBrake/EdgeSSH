@@ -2663,8 +2663,8 @@ button:disabled {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 7px;
-  padding: 5px 8px;
+  gap: 4px;
+  padding: 4px 6px;
   border-bottom: 1px solid var(--border-soft);
   background: var(--panel);
 }
@@ -2705,10 +2705,11 @@ button:disabled {
 
 .file-action {
   display: grid;
-  min-width: 27px;
+  width: 26px;
+  min-width: 26px;
   height: 26px;
   flex: 0 0 auto;
-  padding: 0 6px;
+  padding: 0;
   place-items: center;
   border: 1px solid transparent;
   border-radius: 5px;
@@ -2719,11 +2720,7 @@ button:disabled {
   font-weight: 700;
 }
 
-.file-action-wide {
-  min-width: auto;
-  font-family: var(--sans);
-  font-size: 10px;
-}
+.file-action svg { width: 14px; height: 14px; }
 
 .file-view-controls {
   display: flex;
@@ -2731,13 +2728,6 @@ button:disabled {
   margin-left: auto;
 }
 
-.file-view-controls .file-action {
-  width: 44px;
-  height: 44px;
-  padding: 0;
-}
-
-.file-view-controls svg { width: 18px; height: 18px; }
 .file-view-controls #exit-fullscreen-files { display: none; }
 .file-manager:fullscreen #fullscreen-files { display: none; }
 .file-manager:fullscreen #exit-fullscreen-files { display: grid; }

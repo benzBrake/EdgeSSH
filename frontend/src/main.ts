@@ -1,7 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { createElement, Maximize, Menu, Minimize, Server, FolderOpen, Terminal as TerminalIcon } from 'lucide';
+import { createElement, Maximize, Menu, Minimize, Server, FolderOpen, Terminal as TerminalIcon, ArrowLeft, ArrowUp, House, RefreshCw, Upload, Download, FolderPlus, Pencil, Trash2 } from 'lucide';
 import { historyKey, historyLabel } from './history';
 import { listHosts, hostCredentials, saveHost, removeHost, updateHostSystem, type CloudHost, type Credentials, type HostSystemInfo } from './cloud-api';
 import { Dashboard } from './dashboard';
@@ -2675,6 +2675,21 @@ ui.fullscreenTerminal.addEventListener('click', async () => {
   else await target.requestFullscreen();
 });
 document.addEventListener('fullscreenchange', () => fitTerminal(true));
+for (const [id, icon] of [
+  ['file-back', ArrowLeft], ['file-up', ArrowUp], ['file-home', House], ['file-refresh', RefreshCw],
+  ['file-upload', Upload], ['file-download', Download], ['file-mkdir', FolderPlus], ['file-rename', Pencil], ['file-delete', Trash2],
+] as const) {
+  const button = ui.fileManagerPanel.querySelector<HTMLButtonElement>(`#${id}`)!;
+  const zh = button.dataset.i18nZh ?? button.dataset.i18nAriaLabelZh!;
+  const en = button.dataset.i18nEn ?? button.dataset.i18nAriaLabelEn!;
+  delete button.dataset.i18nZh;
+  delete button.dataset.i18nEn;
+  button.dataset.i18nAriaLabelZh = button.dataset.i18nTitleZh = zh;
+  button.dataset.i18nAriaLabelEn = button.dataset.i18nTitleEn = en;
+  button.setAttribute('aria-label', bilingual(zh, en));
+  button.title = bilingual(zh, en);
+  button.replaceChildren(createElement(icon, { 'aria-hidden': 'true' }));
+}
 ui.fullscreenFiles.append(createElement(Maximize, { 'aria-hidden': 'true' }));
 ui.exitFullscreenFiles.append(createElement(Minimize, { 'aria-hidden': 'true' }));
 ui.fullscreenFiles.addEventListener('click', () => {
