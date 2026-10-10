@@ -4,19 +4,21 @@ html[data-theme='dark'] #dashboard:has(.settings-page:not([hidden])) {
   --home-line: #2c3e4b; --home-accent-soft: #f4511e1f; --home-danger: #ff929b; color-scheme: dark;
 }
 .settings-page { width: 100%; max-width: 1000px; min-width: 0; margin-inline: auto; padding: 36px 32px; }
-.settings-page fieldset { min-width: 0; margin: 0; padding: 8px 24px 0; border: 1px solid var(--home-line); border-radius: 12px; background: var(--home-surface); }
+.settings-page fieldset { min-width: 0; margin: 0; padding: 4px 20px 0; border: 1px solid var(--home-line); border-radius: 12px; background: var(--home-surface); }
 .settings-page legend { padding: 0 8px; font-size: 15px; font-weight: 600; }
-.settings-page fieldset + fieldset { margin-top: 24px; }
-.settings-hint { margin: 12px 0 0; color: var(--home-muted); font-size: 12px; line-height: 1.7; }
-.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 0; border-bottom: 1px solid var(--home-line); font-size: 14px; }
+.settings-page fieldset + fieldset { margin-top: 16px; }
+.settings-hint { margin: 8px 0 4px; color: var(--home-muted); font-size: 12px; line-height: 1.6; }
+.settings-toggle-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
+.settings-toggle-grid .settings-row:nth-last-child(-n + 2) { border-bottom: 0; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; padding: 12px 0; border-bottom: 1px solid var(--home-line); font-size: 14px; }
 .settings-row:last-child { border-bottom: 0; }
 .settings-row > span { min-width: 0; }
-.settings-row small { display: block; margin-top: 7px; color: var(--home-muted); font-size: 12px; line-height: 1.7; }
-#dashboard .settings-row :is(input[type='number'], select) { flex-shrink: 0; width: 220px; max-width: 100%; min-height: 44px; border: 1px solid var(--home-line); border-radius: 7px; padding: 8px 12px; background: var(--home-bg); color: var(--home-ink); }
+.settings-row small { display: block; margin-top: 4px; color: var(--home-muted); font-size: 12px; line-height: 1.6; }
+#dashboard .settings-row :is(input[type='number'], select) { flex-shrink: 0; width: 220px; max-width: 100%; min-height: 36px; border: 1px solid var(--home-line); border-radius: 7px; padding: 6px 10px; background: var(--home-bg); color: var(--home-ink); }
 #dashboard .settings-row input[type='checkbox'] { flex: 0 0 20px; width: 20px; height: 20px; accent-color: var(--home-accent); }
-.settings-status { min-height: 24px; margin-top: 20px; font-size: 13px; line-height: 1.7; color: var(--home-muted); overflow-wrap: anywhere; }
+.settings-status { min-height: 24px; margin-top: 12px; font-size: 13px; line-height: 1.7; color: var(--home-muted); overflow-wrap: anywhere; }
 .settings-status.is-error { color: var(--home-danger); }
-.settings-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .settings-actions [type='submit'] { margin-left: auto; }
 #dashboard .settings-page .home-button.primary { color: #fff; }
 .settings-demo { padding: 14px 18px; border: 1px solid var(--home-line); border-radius: 8px; color: var(--home-muted); line-height: 1.7; }
@@ -24,9 +26,11 @@ html[data-theme='dark'] #dashboard:has(.settings-page:not([hidden])) {
 @media (max-width: 600px) {
   .settings-page { padding: 24px 16px; }
   .settings-page fieldset { padding-inline: 16px; }
+  .settings-toggle-grid { grid-template-columns: minmax(0, 1fr); }
+  .settings-toggle-grid .settings-row:nth-last-child(2) { border-bottom: 1px solid var(--home-line); }
   .settings-row { flex-wrap: wrap; gap: 12px; }
   .settings-row:has(select) > span, .settings-row:has(input[type='number']) > span { width: 100%; }
-  #dashboard .settings-row :is(input[type='number'], select) { width: 100%; }
+  #dashboard .settings-row :is(input[type='number'], select) { width: 100%; min-height: 44px; }
   .settings-row:has(input[type='checkbox']) > span { flex: 1; }
   .settings-actions .home-button { flex: 1 0 40%; min-height: 44px; }
 }
