@@ -164,7 +164,9 @@ test('离开未保存设置需确认，切回会话保留连接和草稿', async
   const { calls } = await fileFixture(page, { workbench: 'ssh', initialCommand: '' });
   await connectFiles(page);
   const session = fileSession(page);
+  await expect(session.locator('#live-orb')).toHaveClass(/connected/);
   await session.locator('#command-editor-input').fill('echo draft');
+  await expect(session.locator('#command-editor-input')).toHaveValue('echo draft');
   const settings = await openSettings(page);
   await settings.getByLabel('终端字号').fill('16');
   page.once('dialog', dialog => dialog.dismiss());
@@ -186,11 +188,15 @@ test('已打开终端同步字号与光标，新会话应用编辑器默认值�
   const { settingsState, calls } = await fileFixture(page, { workbench: 'ssh', initialCommand: '' });
   await connectFiles(page);
   const first = page.frameLocator('.session-frame-host iframe').nth(0);
+  // ready 会聚焦终端；等握手完成后再填写草稿，避免输入被焦点切换送入终端。
+  await expect(first.locator('#live-orb')).toHaveClass(/connected/);
   await first.locator('#command-editor-input').fill('keep draft');
+  await expect(first.locator('#command-editor-input')).toHaveValue('keep draft');
   await first.locator('#command-editor-close').click();
   await page.locator('#session-new').click();
   await expect(fileSession(page).locator('#connection-panel')).toBeVisible();
   await connectFiles(page);
+  await expect(fileSession(page).locator('#live-orb')).toHaveClass(/connected/);
   expect(childSettingsReads).toEqual([]);
   const settings = await openSettings(page);
   await settings.getByLabel('终端字号').fill('19');
@@ -213,6 +219,7 @@ test('已打开终端同步字号与光标，新会话应用编辑器默认值�
   await page.locator('#session-new').click();
   await expect(fileSession(page).locator('#connection-panel')).toBeVisible();
   await connectFiles(page);
+  await expect(fileSession(page).locator('#live-orb')).toHaveClass(/connected/);
   await expect(fileSession(page).locator('#command-editor')).toBeHidden();
   expect(calls.filter(call => call.type === 'resize').length).toBeGreaterThan(0);
 });
@@ -223,6 +230,7 @@ test('收起时单行片段输入终端，无回车或修饰键；多行和已�
   await page.route('**/api/snippets', route => route.fulfill({ json: { snippets } }));
   await connectFiles(page);
   const session = fileSession(page);
+  await expect(session.locator('#live-orb')).toHaveClass(/connected/);
   const panel = session.locator('#snippet-panel');
   if (await panel.isVisible()) await panel.getByRole('button', { name: '收起代码片段' }).click();
   const menu = session.locator('#snippet-quick-menu');
