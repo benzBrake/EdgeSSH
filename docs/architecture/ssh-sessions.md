@@ -24,6 +24,8 @@
 
 SFTP v3 文件传输上限 64 MiB，块大小 64 KiB，路径/目录项/响应体均有边界。清理需防止重复关闭与迟到连接结果复活。SSH rekey 当前显式不支持，不能把初始握手成功当作长连接重新密钥交换已支持。
 
+文本预览复用下载通道，单次限制 1 MiB 且要求普通文件。在线编辑保存复用上传通道：先核对原内容 SHA-256，写入临时文件并核实权限与属主，再次核对远端内容和属性后重命名；冲突或属性无法保留时保留原文件并报错。SFTP v3 不提供原子条件写入，最后一次核对与重命名之间仍有竞态；部分服务器也可能拒绝重命名覆盖已有文件。
+
 ## 依赖与验证
 
 协议层见 [ssh](../../src/ssh/README.md)，forward 授权与 HTTP 桥接见 [forwarding](../../src/forwarding/README.md)。对应 `tests/ssh-handshake.test.ts`、`ssh-session-failure.test.ts`、`session-revocation.test.ts`、`forwarding-failure.test.ts`、`system-info.test.ts`、`auth.test.ts`，浏览器侧有 ssh-failure/files/forwarding 回归。握手测试使用真实签名与协商加密验证重放拒绝和正常握手；现有测试用内存 bundle 与 socket mock 验证真实类，不要求真实 Cloudflare 连接。

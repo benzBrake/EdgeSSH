@@ -484,6 +484,26 @@ export class SFTPClient {
     });
   }
 
+  lstat(path: string): Promise<SFTPAttrs> {
+    return this.request(SFTP_PACKET_TYPES.LSTAT, [encodeString(path, 'path')], (type, reader, id) => {
+      this.throwStatusOrUnexpected(type, reader, id, SFTP_PACKET_TYPES.ATTRS);
+      return parseAttrs(reader, this.maxExtendedAttributes);
+    });
+  }
+
+  fstat(handle: SFTPHandle): Promise<SFTPAttrs> {
+    return this.request(SFTP_PACKET_TYPES.FSTAT, [encodeString(handle, 'handle')], (type, reader, id) => {
+      this.throwStatusOrUnexpected(type, reader, id, SFTP_PACKET_TYPES.ATTRS);
+      return parseAttrs(reader, this.maxExtendedAttributes);
+    });
+  }
+
+  fsetstat(handle: SFTPHandle, attrs: SFTPAttrsInput): Promise<void> {
+    return this.statusRequest(SFTP_PACKET_TYPES.FSETSTAT, [
+      encodeString(handle, 'handle'), encodeAttrs(attrs, this.maxExtendedAttributes),
+    ]);
+  }
+
   openFile(path: string, flags: SFTPOpenFlags, attrs?: SFTPAttrsInput): Promise<SFTPHandle> {
     return this.request(SFTP_PACKET_TYPES.OPEN, [
       encodeString(path, 'path'),

@@ -1,6 +1,7 @@
 import type { FileListView } from './file-list-view';
 
 export const MAX_SFTP_FILE_SIZE = 64 * 1024 * 1024;
+export const MAX_TEXT_FILE_SIZE = 1024 * 1024;
 export const SFTP_UPLOAD_CHUNK_SIZE = 64 * 1024;
 
 export interface FileManagerElements {
@@ -12,6 +13,9 @@ export interface FileManagerElements {
   refresh: HTMLButtonElement;
   upload: HTMLButtonElement;
   download: HTMLButtonElement;
+  more: HTMLButtonElement;
+  newFile: HTMLButtonElement;
+  filter: HTMLInputElement;
   mkdir: HTMLButtonElement;
   rename: HTMLButtonElement;
   delete: HTMLButtonElement;
@@ -25,6 +29,17 @@ export interface FileManagerElements {
   progressLabel: HTMLElement;
   progressBar: HTMLProgressElement;
   progressCancel: HTMLButtonElement;
+  editor: HTMLDialogElement;
+  editorName: HTMLElement;
+  editorState: HTMLElement;
+  editorText: HTMLTextAreaElement;
+  editorMessage: HTMLElement;
+  editorEdit: HTMLButtonElement;
+  editorSave: HTMLButtonElement;
+  editorClose: HTMLButtonElement;
+  contextMenu: HTMLElement;
+  contextView: HTMLButtonElement;
+  contextEdit: HTMLButtonElement;
 }
 
 export interface FileManagerOptions {
@@ -77,6 +92,7 @@ interface UploadState {
   readyForData: boolean;
   cancelling: boolean;
   cancelSent: boolean;
+  textSave?: { path: string; sha256: string; expectedSha256?: string };
 }
 
 interface DownloadState {
@@ -90,6 +106,21 @@ interface DownloadState {
   started: boolean;
   cancelling: boolean;
   cancelSent: boolean;
+  preview?: boolean;
+}
+
+interface TextDraft {
+  path: string;
+  name: string;
+  baseline: string;
+  sha256: string | null;
+  bom: boolean;
+  newline: 'lf' | 'crlf' | 'mixed';
+  editable: boolean;
+  editing: boolean;
+  isNew: boolean;
+  detached: boolean;
+  hostKey: string | null;
 }
 
 type SocketData = string | ArrayBuffer | ArrayBufferView | Blob;
@@ -125,6 +156,9 @@ export function collectFileManagerElements(root: ParentNode = document): FileMan
     refresh: requiredElement(root, 'file-refresh'),
     upload: requiredElement(root, 'file-upload'),
     download: requiredElement(root, 'file-download'),
+    more: requiredElement(root, 'file-more'),
+    newFile: requiredElement(root, 'file-new'),
+    filter: requiredElement(root, 'file-filter'),
     mkdir: requiredElement(root, 'file-mkdir'),
     rename: requiredElement(root, 'file-rename'),
     delete: requiredElement(root, 'file-delete'),
@@ -138,6 +172,17 @@ export function collectFileManagerElements(root: ParentNode = document): FileMan
     progressLabel: requiredElement(root, 'file-manager-progress-label'),
     progressBar: requiredElement(root, 'file-manager-progress-bar'),
     progressCancel: requiredElement(root, 'file-manager-progress-cancel'),
+    editor: requiredElement(root, 'file-editor'),
+    editorName: requiredElement(root, 'file-editor-name'),
+    editorState: requiredElement(root, 'file-editor-state'),
+    editorText: requiredElement(root, 'file-editor-text'),
+    editorMessage: requiredElement(root, 'file-editor-message'),
+    editorEdit: requiredElement(root, 'file-editor-edit'),
+    editorSave: requiredElement(root, 'file-editor-save'),
+    editorClose: requiredElement(root, 'file-editor-close'),
+    contextMenu: requiredElement(root, 'file-context-menu'),
+    contextView: requiredElement(root, 'file-context-view'),
+    contextEdit: requiredElement(root, 'file-context-edit'),
   };
 }
 
@@ -217,6 +262,12 @@ export class FileManager {
   private activeListRequest: string | null = null;
   private uploadState: UploadState | null = null;
   private downloadState: DownloadState | null = null;
+  private draft: TextDraft | null = null;
+  private editorMessageCopy: LocalizedText | null = null;
+  private contextMenuOrigin: HTMLElement | null = null;
+  private previewForEdit = false;
+  private hostKey: string | null = null;
+  private truncated = false;
   private uploadConfirmationPending = false;
   private messageQueue: Promise<void> = Promise.resolve();
   private statusCopy: LocalizedText = DISCONNECTED;
@@ -250,9 +301,10 @@ export class FileManager {
     this.renderDisconnected();
   }
 
-  attach(url: string): void {
+  attach(url: string, hostKey = this.hostKey): void {
     this.clearReconnectTimer();
     this.reset();
+    this.hostKey = hostKey;
     this.wantConnection = true;
     this.url = url;
     this.setConnectionState('connecting');
@@ -306,7 +358,17 @@ export class FileManager {
       );
       this.socket = null;
       this.ready = false;
+      if (this.draft && this.hasUnsavedDraft()) {
+        this.draft.detached = true;
+        if (this.uploadState?.textSave && this.uploadState.endSent) {
+          this.showEditorMessage({
+            zh: '连接中断，保存结果不确定。重新连接后请先核对远端文件。',
+            en: 'Connection lost; the save result is unknown. Check the remote file before retrying.',
+          });
+        }
+      }
       this.abortTransfers(false);
+      this.renderEditor();
       this.pending.clear();
       this.activeListRequest = null;
       this.rejectTreeLists(new Error('SFTP connection closed'));
@@ -337,6 +399,8 @@ export class FileManager {
   }
 
   reset(): void {
+    this.hideContextMenu();
+    const uncertainSave = Boolean(this.uploadState?.textSave && this.uploadState.endSent);
     this.wantConnection = false;
     this.clearReconnectTimer();
     this.reconnectAttempts = 0;
@@ -361,12 +425,25 @@ export class FileManager {
     this.historyIndex = 0;
     this.entries = [];
     this.selectedIndex = -1;
+    this.truncated = false;
+    this.elements.filter.value = '';
+    if (this.draft) {
+      if (this.hasUnsavedDraft()) this.draft.detached = true;
+      else this.draft = null;
+    }
+    if (uncertainSave) this.showEditorMessage({
+      zh: '连接中断，保存结果不确定。重新连接后请先核对远端文件。',
+      en: 'Connection lost; the save result is unknown. Check the remote file before retrying.',
+    });
     this.renderDisconnected();
+    this.renderEditor();
     this.setConnectionState('idle');
   }
 
   destroy(): void {
     this.reset();
+    this.draft = null;
+    this.renderEditor();
     this.cwdListeners.clear();
     this.connectionListeners.clear();
     this.bindings.abort();
@@ -405,6 +482,8 @@ export class FileManager {
     this.updateStatusText(this.statusCopy);
     this.renderEntries();
     this.updateProgressLanguage();
+    this.renderEditor();
+    if (this.editorMessageCopy) this.elements.editorMessage.textContent = this.localize(this.editorMessageCopy);
   }
 
   setListView(view: FileListView | null): void {
@@ -420,6 +499,12 @@ export class FileManager {
   activateIndex(index: number): void {
     this.selectEntry(index);
     this.activateEntry(this.selectedEntry());
+  }
+
+  openEntryMenu(index: number, x: number, y: number, origin: HTMLElement): void {
+    this.selectEntry(index);
+    if (this.selectedEntry()?.type !== 'file') return;
+    this.showContextMenu(x, y, origin);
   }
 
   /**
@@ -465,13 +550,18 @@ export class FileManager {
     return this.hasTransfer() || this.uploadConfirmationPending;
   }
 
+  hasUnsavedDraft(): boolean {
+    return Boolean(this.draft && (this.draft.isNew || this.elements.editorText.value !== this.draft.baseline));
+  }
+
   private setConnectionState(state: FileServiceState): void {
     if (this.connectionState === state) return;
     this.connectionState = state;
     for (const listener of this.connectionListeners) listener(state);
   }
 
-  async upload(file: File, destination?: string): Promise<void> {
+  async upload(file: File, destination?: string,
+    textSave?: { sha256: string; expectedSha256?: string }): Promise<void> {
     if (!this.ready || this.hasTransfer() || this.uploadConfirmationPending) return;
     if (file.size > MAX_SFTP_FILE_SIZE) {
       this.showError(this.localize({ zh: '文件不能超过 64 MiB。', en: 'Files cannot exceed 64 MiB.' }));
@@ -484,8 +574,12 @@ export class FileManager {
     }
     const existing = this.entries.find((entry) => joinPath(this.cwd, entry.name) === path);
     const generation = this.generation;
-    let overwrite = false;
-    if (existing) {
+    let overwrite = textSave?.expectedSha256 !== undefined;
+    if (textSave && !overwrite && existing) {
+      this.showError(this.localize({ zh: '同名文件已存在，草稿未保存。', en: 'A file with this name exists; the draft was not saved.' }));
+      return;
+    }
+    if (existing && !textSave) {
       this.uploadConfirmationPending = true;
       this.updateControls();
       try {
@@ -520,17 +614,26 @@ export class FileManager {
       readyForData: false,
       cancelling: false,
       cancelSent: false,
+      textSave: textSave && { path, ...textSave },
     };
     this.showProgress('upload', file.name, 0);
-    this.send({ type: 'sftp_upload_start', requestId, path, size: file.size, overwrite });
+    this.send({ type: 'sftp_upload_start', requestId, path, size: file.size, overwrite,
+      ...(textSave?.expectedSha256 ? { expectedSha256: textSave.expectedSha256, preserveMetadata: true } : {}) });
     this.updateControls();
   }
 
   downloadSelected(): void {
     const entry = this.selectedEntry();
+    this.startDownload(entry, false);
+  }
+
+  private startDownload(entry: SFTPEntry | null, preview: boolean): void {
     if (!this.ready || !entry || entry.type !== 'file' || this.hasTransfer()) return;
-    if (sizeExceedsLimit(entry.size)) {
-      this.showError(this.localize({ zh: '文件不能超过 64 MiB。', en: 'Files cannot exceed 64 MiB.' }));
+    const limit = preview ? MAX_TEXT_FILE_SIZE : MAX_SFTP_FILE_SIZE;
+    if (typeof entry.size === 'string' ? entry.size.length > String(limit).length || (entry.size.length === String(limit).length && entry.size > String(limit)) : entry.size > limit) {
+      this.showError(this.localize(preview
+        ? { zh: '文本预览不能超过 1 MiB，请使用下载。', en: 'Text preview is limited to 1 MiB; use Download.' }
+        : { zh: '文件不能超过 64 MiB。', en: 'Files cannot exceed 64 MiB.' }));
       return;
     }
     const path = joinPath(this.cwd, entry.name);
@@ -546,9 +649,10 @@ export class FileManager {
       started: false,
       cancelling: false,
       cancelSent: false,
+      preview,
     };
     this.showProgress('download', entry.name, 0);
-    this.send({ type: 'sftp_download', requestId, path });
+    this.send({ type: 'sftp_download', requestId, path, ...(preview ? { maxBytes: MAX_TEXT_FILE_SIZE } : {}) });
     this.updateControls();
   }
 
@@ -578,6 +682,52 @@ export class FileManager {
       if (file) void this.upload(file);
     }, { signal });
     this.elements.download.addEventListener('click', () => this.downloadSelected(), { signal });
+    this.elements.more.addEventListener('click', () => {
+      const rect = this.elements.more.getBoundingClientRect();
+      this.showContextMenu(rect.left, rect.bottom + 4, this.elements.more);
+    }, { signal });
+    this.elements.contextView.addEventListener('click', () => {
+      this.hideContextMenu(true);
+      void this.previewSelected(false);
+    }, { signal });
+    this.elements.contextEdit.addEventListener('click', () => {
+      this.hideContextMenu(true);
+      void this.previewSelected(true);
+    }, { signal });
+    this.elements.contextMenu.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.hideContextMenu(true);
+      } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+        event.preventDefault();
+        const items = [this.elements.contextView, this.elements.contextEdit].filter(item => !item.disabled);
+        if (!items.length) return;
+        const current = items.indexOf(document.activeElement as HTMLButtonElement);
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
+          : (current + (event.key === 'ArrowDown' ? 1 : items.length - 1) + items.length) % items.length;
+        items[next].focus();
+      }
+    }, { signal });
+    document.addEventListener('pointerdown', (event) => {
+      if (!this.elements.contextMenu.contains(event.target as Node) && event.target !== this.elements.more) this.hideContextMenu();
+    }, { signal });
+    document.addEventListener('scroll', () => this.hideContextMenu(), { capture: true, signal });
+    window.addEventListener('resize', () => this.hideContextMenu(), { signal });
+    this.elements.newFile.addEventListener('click', () => void this.newTextFile(), { signal });
+    this.elements.filter.addEventListener('input', () => this.applyFilter(), { signal });
+    this.elements.editorEdit.addEventListener('click', () => {
+      if (!this.draft?.editable) return;
+      this.draft.editing = true;
+      this.renderEditor();
+      this.elements.editorText.focus();
+    }, { signal });
+    this.elements.editorText.addEventListener('input', () => this.renderEditor(), { signal });
+    this.elements.editorSave.addEventListener('click', () => void this.saveText(), { signal });
+    this.elements.editorClose.addEventListener('click', () => void this.closeEditor(), { signal });
+    this.elements.editor.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      void this.closeEditor();
+    }, { signal });
     this.elements.progressCancel.addEventListener('click', () => this.cancelTransfer(), { signal });
     this.elements.mkdir.addEventListener('click', () => void this.createDirectory(), { signal });
     this.elements.rename.addEventListener('click', () => void this.renameSelected(), { signal });
@@ -596,6 +746,14 @@ export class FileManager {
       const entry = this.selectRow(target, true);
       this.activateEntry(entry);
     }, { signal });
+    this.elements.tableBody.addEventListener('contextmenu', (event) => {
+      const row = this.rowFromEvent(event);
+      if (!row) return;
+      const entry = this.selectRow(row, true);
+      if (entry?.type !== 'file') return;
+      event.preventDefault();
+      this.showContextMenu(event.clientX, event.clientY, row);
+    }, { signal });
     this.elements.tableBody.addEventListener('keydown', (event) => {
       const target = this.rowFromEvent(event);
       if (!target) return;
@@ -604,14 +762,23 @@ export class FileManager {
         this.activateEntry(this.selectRow(target, false));
         return;
       }
+      if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+        event.preventDefault();
+        const entry = this.selectRow(target, true);
+        if (entry?.type === 'file') {
+          const rect = target.getBoundingClientRect();
+          this.showContextMenu(rect.left, rect.bottom, target);
+        }
+        return;
+      }
       if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
-      const current = Number(target.dataset.index);
+      const current = Array.from(this.elements.tableBody.rows).indexOf(target);
       const next = event.key === 'Home'
         ? 0
         : event.key === 'End'
-          ? this.entries.length - 1
-          : Math.max(0, Math.min(this.entries.length - 1, current + (event.key === 'ArrowUp' ? -1 : 1)));
+          ? this.visibleEntries().length - 1
+          : Math.max(0, Math.min(this.visibleEntries().length - 1, current + (event.key === 'ArrowUp' ? -1 : 1)));
       const nextRow = this.elements.tableBody.rows.item(next);
       if (nextRow) this.selectRow(nextRow, true);
     }, { signal });
@@ -663,7 +830,7 @@ export class FileManager {
       return;
     }
     if (type === 'sftp_download_done') {
-      this.handleDownloadDone(message);
+      await this.handleDownloadDone(message);
       return;
     }
     if (type === 'sftp_upload_cancelled' || type === 'sftp_download_cancelled') {
@@ -686,6 +853,8 @@ export class FileManager {
     let cwd: string;
     try { cwd = normalizePath(typeof message.cwd === 'string' ? message.cwd : '/'); } catch { cwd = '/'; }
     this.ready = true;
+    if (this.draft?.detached && this.draft.hostKey === this.hostKey) this.draft.detached = false;
+    this.renderEditor();
     this.setConnectionState('ready');
     this.cwd = cwd;
     this.emitCwdChange(cwd);
@@ -753,15 +922,19 @@ export class FileManager {
     }
     this.entries = entries;
     this.selectedIndex = -1;
+    this.truncated = message.isTruncated === true;
+    if (pending.historyMode !== 'none') this.elements.filter.value = '';
     this.elements.path.value = path;
     this.elements.loading.hidden = true;
     this.elements.error.hidden = true;
     this.elements.empty.hidden = entries.length !== 0;
     this.renderEntries();
-    const truncated = message.isTruncated === true;
+    const truncated = this.truncated;
+    const filtered = this.elements.filter.value.trim() !== '';
+    const visibleCount = this.visibleEntries().length;
     this.setStatus({
-      zh: `${entries.length} 个项目${truncated ? '（列表已截断）' : ''}`,
-      en: `${entries.length} item${entries.length === 1 ? '' : 's'}${truncated ? ' (list truncated)' : ''}`,
+      zh: `${filtered ? `${visibleCount} / ` : ''}${entries.length} 个项目${truncated ? '（列表已截断）' : ''}`,
+      en: `${filtered ? `${visibleCount} / ` : ''}${entries.length} item${entries.length === 1 ? '' : 's'}${truncated ? ' (list truncated)' : ''}`,
     });
     this.updateControls();
   }
@@ -793,11 +966,16 @@ export class FileManager {
 
   private renderEntries(): void {
     this.elements.tableBody.replaceChildren();
+    const visible = this.visibleEntries();
+    this.elements.empty.hidden = visible.length !== 0;
+    this.elements.empty.textContent = this.elements.filter.value.trim()
+      ? this.localize({ zh: '无匹配文件', en: 'No matching files' })
+      : this.localize({ zh: '此目录为空', en: 'This folder is empty' });
     if (this.listView) {
       this.listView.render({
         chinese: this.isChinese(),
         selectedId: this.selectedEntry()?.name,
-        items: this.entries.map((entry, index) => ({
+        items: visible.map(({ entry, index }) => ({
           id: entry.name, name: entry.name, index, entry,
           columns: [
             entry.type === 'directory' ? '' : this.formatSize(entry.size),
@@ -810,7 +988,7 @@ export class FileManager {
       return;
     }
     const fragment = document.createDocumentFragment();
-    this.entries.forEach((entry, index) => {
+    visible.forEach(({ entry, index }) => {
       const row = document.createElement('tr');
       row.dataset.index = String(index);
       row.tabIndex = index === this.rovingIndex() ? 0 : -1;
@@ -839,6 +1017,27 @@ export class FileManager {
       fragment.append(row);
     });
     this.elements.tableBody.append(fragment);
+  }
+
+  private visibleEntries(): Array<{ entry: SFTPEntry; index: number }> {
+    const query = this.elements.filter.value.trim().toLocaleLowerCase();
+    return this.entries.flatMap((entry, index) => entry.name.toLocaleLowerCase().includes(query) ? [{ entry, index }] : []);
+  }
+
+  private applyFilter(): void {
+    if (this.selectedIndex >= 0 && !this.visibleEntries().some(item => item.index === this.selectedIndex)) {
+      this.selectedIndex = -1;
+    }
+    this.renderEntries();
+    if (this.ready) {
+      const count = this.visibleEntries().length;
+      const total = this.entries.length;
+      this.setStatus({
+        zh: `${count} / ${total} 个项目${this.truncated ? '（列表已截断）' : ''}`,
+        en: `${count} / ${total} items${this.truncated ? ' (list truncated)' : ''}`,
+      });
+    }
+    this.updateControls();
   }
 
   private cell(text: string): HTMLTableCellElement {
@@ -876,17 +1075,147 @@ export class FileManager {
   }
 
   private rovingIndex(): number {
-    if (this.entries.length === 0) return -1;
-    return this.selectedIndex >= 0 && this.selectedIndex < this.entries.length ? this.selectedIndex : 0;
+    const visible = this.visibleEntries();
+    if (visible.length === 0) return -1;
+    return visible.some(item => item.index === this.selectedIndex) ? this.selectedIndex : visible[0].index;
   }
 
   private activateEntry(entry: SFTPEntry | null): void {
     if (!entry) return;
     if (entry.type === 'directory' || entry.type === 'symlink') {
       this.navigate(joinPath(this.cwd, entry.name));
-    } else {
-      this.downloadSelected();
+    } else if (entry.type === 'file') this.downloadSelected();
+  }
+
+  private showContextMenu(x: number, y: number, origin: HTMLElement): void {
+    const entry = this.selectedEntry();
+    if (!entry || entry.type !== 'file') return;
+    this.contextMenuOrigin = origin;
+    const available = this.ready && !this.hasTransfer() && Number(entry.size) <= MAX_TEXT_FILE_SIZE;
+    this.elements.contextView.disabled = !available;
+    this.elements.contextEdit.disabled = !available;
+    this.elements.contextMenu.hidden = false;
+    this.elements.more.setAttribute('aria-expanded', 'true');
+    const rect = this.elements.contextMenu.getBoundingClientRect();
+    this.elements.contextMenu.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`;
+    this.elements.contextMenu.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`;
+    if (available) this.elements.contextView.focus();
+  }
+
+  private hideContextMenu(restoreFocus = false): void {
+    if (this.elements.contextMenu.hidden) return;
+    this.elements.contextMenu.hidden = true;
+    this.elements.more.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) this.contextMenuOrigin?.focus();
+    this.contextMenuOrigin = null;
+  }
+
+  private async confirmDiscardDraft(): Promise<boolean> {
+    if (!this.hasUnsavedDraft()) return true;
+    return this.confirmAction(this.localize({
+      zh: '未保存的文本草稿将被丢弃。仍要继续吗？',
+      en: 'The unsaved text draft will be discarded. Continue?',
+    }));
+  }
+
+  private async previewSelected(editing: boolean): Promise<void> {
+    const entry = this.selectedEntry();
+    if (!entry || entry.type !== 'file' || !this.ready || this.hasTransfer()) return;
+    if (sizeExceedsLimit(entry.size) || Number(entry.size) > MAX_TEXT_FILE_SIZE) {
+      this.showPreviewError(this.localize({ zh: '文本预览不能超过 1 MiB，请使用下载。', en: 'Text preview is limited to 1 MiB; use Download.' }));
+      return;
     }
+    const generation = this.generation;
+    if (!await this.confirmDiscardDraft() || generation !== this.generation || !this.ready) return;
+    this.draft = null;
+    this.previewForEdit = editing;
+    this.renderEditor();
+    this.startDownload(entry, true);
+  }
+
+  private async newTextFile(): Promise<void> {
+    const generation = this.generation;
+    if (!this.ready || this.hasTransfer() || !await this.confirmDiscardDraft() || generation !== this.generation) return;
+    const name = await this.promptAction(this.localize({ zh: '新文件名称', en: 'New file name' }), '');
+    if (name === null || generation !== this.generation || !this.ready) return;
+    let path: string;
+    try { path = joinPath(this.cwd, name); } catch {
+      this.showError(this.localize({ zh: '文件名无效。', en: 'Invalid file name.' }));
+      return;
+    }
+    if (this.entries.some(entry => entry.name === name)) {
+      this.showError(this.localize({ zh: '同名文件已存在。', en: 'A file with this name already exists.' }));
+      return;
+    }
+    this.draft = { path, name, baseline: '', sha256: null, bom: false, newline: 'lf',
+      editable: true, editing: true, isNew: true, detached: false, hostKey: this.hostKey };
+    this.elements.editorText.value = '';
+    this.showEditorMessage('');
+    this.renderEditor();
+    this.elements.editorText.focus();
+  }
+
+  private async closeEditor(): Promise<void> {
+    const draft = this.draft;
+    if (this.uploadState?.textSave || !await this.confirmDiscardDraft() || draft !== this.draft) return;
+    this.draft = null;
+    this.showEditorMessage('');
+    this.renderEditor();
+    this.elements.filter.focus();
+  }
+
+  private async saveText(): Promise<void> {
+    const draft = this.draft;
+    const generation = this.generation;
+    if (!draft || !draft.editable || !draft.editing || draft.detached || !this.ready || this.hasTransfer()) return;
+    const text = this.elements.editorText.value;
+    const normalized = draft.newline === 'crlf' ? text.replace(/\n/g, '\r\n') : text;
+    if (normalized.length > MAX_TEXT_FILE_SIZE) {
+      this.showEditorMessage({ zh: '文本保存不能超过 1 MiB。', en: 'Text saves are limited to 1 MiB.' });
+      return;
+    }
+    const body = new TextEncoder().encode(normalized);
+    const bytes = draft.bom ? new Uint8Array(body.length + 3) : body;
+    if (draft.bom) { bytes.set([0xef, 0xbb, 0xbf]); bytes.set(body, 3); }
+    if (bytes.length > MAX_TEXT_FILE_SIZE) {
+      this.showEditorMessage({ zh: '文本保存不能超过 1 MiB。', en: 'Text saves are limited to 1 MiB.' });
+      return;
+    }
+    const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
+      byte => byte.toString(16).padStart(2, '0')).join('');
+    if (generation !== this.generation || draft !== this.draft || draft.detached || !this.ready ||
+      this.elements.editorText.value !== text) return;
+    this.showEditorMessage('');
+    await this.upload(new File([bytes], draft.name), draft.path,
+      { sha256, ...(draft.sha256 ? { expectedSha256: draft.sha256 } : {}) });
+    this.renderEditor();
+  }
+
+  private renderEditor(): void {
+    const draft = this.draft;
+    if (draft && !this.elements.editor.open) { this.hideContextMenu(); this.elements.editor.showModal(); }
+    if (!draft && this.elements.editor.open) this.elements.editor.close();
+    if (!draft) return;
+    this.elements.editorName.textContent = draft.path;
+    this.elements.editorState.textContent = draft.detached
+      ? this.localize({ zh: '连接已断开 · 草稿保留', en: 'Disconnected · draft kept' })
+      : draft.isNew ? this.localize({ zh: '新文件草稿', en: 'New file draft' })
+        : this.hasUnsavedDraft() ? this.localize({ zh: '未保存', en: 'Unsaved' })
+          : this.localize({ zh: '已加载', en: 'Loaded' });
+    this.elements.editorText.readOnly = !draft.editing;
+    this.elements.editorText.disabled = Boolean(this.uploadState?.textSave);
+    this.elements.editorEdit.hidden = draft.editing || !draft.editable;
+    this.elements.editorSave.hidden = !draft.editable;
+    this.elements.editorSave.disabled = draft.detached || !this.ready || !draft.editing ||
+      !this.hasUnsavedDraft() || this.hasTransfer();
+    this.elements.editorClose.disabled = Boolean(this.uploadState?.textSave);
+  }
+
+  private showEditorMessage(message: string | LocalizedText): void {
+    this.editorMessageCopy = typeof message === 'string' ? null : message;
+    const copy = typeof message === 'string' ? message : this.localize(message);
+    this.elements.editorMessage.textContent = copy;
+    this.elements.editorMessage.hidden = !copy;
   }
 
   private async createDirectory(): Promise<void> {
@@ -991,7 +1320,16 @@ export class FileManager {
     this.pending.delete(state.requestId);
     this.uploadState = null;
     this.hideProgress();
-    this.setStatus({ zh: `已上传 ${state.file.name}`, en: `Uploaded ${state.file.name}` });
+    if (state.textSave && this.draft?.path === state.textSave.path) {
+      this.draft.sha256 = state.textSave.sha256;
+      this.draft.baseline = this.elements.editorText.value;
+      this.draft.isNew = false;
+      this.showEditorMessage('');
+      this.renderEditor();
+    }
+    this.setStatus(state.textSave
+      ? { zh: `已保存 ${state.file.name}`, en: `Saved ${state.file.name}` }
+      : { zh: `已上传 ${state.file.name}`, en: `Uploaded ${state.file.name}` });
     this.updateControls();
     this.refresh();
   }
@@ -1006,7 +1344,7 @@ export class FileManager {
       this.sendDownloadCancel(state);
       return;
     }
-    if (state.expectedSize !== null && state.expectedSize > MAX_SFTP_FILE_SIZE) {
+    if (state.expectedSize !== null && state.expectedSize > (state.preview ? MAX_TEXT_FILE_SIZE : MAX_SFTP_FILE_SIZE)) {
       state.cancelling = true;
       this.setStatus({ zh: '正在取消传输…', en: 'Cancelling transfer…' });
       this.updateProgressLanguage();
@@ -1032,7 +1370,7 @@ export class FileManager {
     else buffer = data;
     if (state !== this.downloadState || state.generation !== this.generation) return;
     if (state.cancelling) return;
-    if (state.received + buffer.byteLength > MAX_SFTP_FILE_SIZE) {
+    if (state.received + buffer.byteLength > (state.preview ? MAX_TEXT_FILE_SIZE : MAX_SFTP_FILE_SIZE)) {
       state.cancelling = true;
       this.setStatus({ zh: '正在取消传输…', en: 'Cancelling transfer…' });
       this.updateProgressLanguage();
@@ -1045,7 +1383,7 @@ export class FileManager {
     this.showProgress('download', state.name, total && total > 0 ? (state.received / total) * 100 : 0);
   }
 
-  private handleDownloadDone(message: JsonRecord): void {
+  private async handleDownloadDone(message: JsonRecord): Promise<void> {
     const state = this.matchDownload(message);
     if (!state) return;
     if (state.cancelling) {
@@ -1060,9 +1398,41 @@ export class FileManager {
     }
     this.pending.delete(state.requestId);
     this.downloadState = null;
-    this.saveBlob(new Blob(state.chunks), state.name);
+    if (state.preview) {
+      const bytes = new Uint8Array(state.received);
+      let offset = 0;
+      for (const chunk of state.chunks) { bytes.set(new Uint8Array(chunk), offset); offset += chunk.byteLength; }
+      const bom = bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+      let text: string;
+      try {
+        text = new TextDecoder('utf-8', { fatal: true }).decode(bom ? bytes.subarray(3) : bytes);
+        if (text.includes('\0')) throw new Error('NUL byte');
+      } catch {
+        this.hideProgress();
+        this.showPreviewError(this.localize({ zh: '文件不是可预览的 UTF-8 文本，请使用下载。', en: 'The file is not valid UTF-8 text; use Download.' }));
+        this.updateControls();
+        return;
+      }
+      const hasCRLF = text.includes('\r\n');
+      const hasBareLF = /(^|[^\r])\n/.test(text);
+      const hasBareCR = /\r(?!\n)/.test(text);
+      const newline: TextDraft['newline'] = hasBareCR || (hasCRLF && hasBareLF) ? 'mixed' : hasCRLF ? 'crlf' : 'lf';
+      const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
+        byte => byte.toString(16).padStart(2, '0')).join('');
+      if (state.generation !== this.generation || this.draft) return;
+      const content = text.replace(/\r\n/g, '\n');
+      this.draft = { path: state.path, name: state.name, baseline: content, sha256, bom, newline,
+        editable: newline !== 'mixed', editing: this.previewForEdit && newline !== 'mixed', isNew: false, detached: false, hostKey: this.hostKey };
+      this.elements.editorText.value = content;
+      this.showEditorMessage(newline === 'mixed'
+        ? { zh: '混合换行文件仅可查看，请下载后编辑。', en: 'Mixed line endings are view only; download to edit.' } : '');
+      this.renderEditor();
+      this.elements.editorText.focus();
+    } else this.saveBlob(new Blob(state.chunks), state.name);
     this.hideProgress();
-    this.setStatus({ zh: `已下载 ${state.name}`, en: `Downloaded ${state.name}` });
+    this.setStatus(state.preview
+      ? { zh: `已打开 ${state.name}`, en: `Opened ${state.name}` }
+      : { zh: `已下载 ${state.name}`, en: `Downloaded ${state.name}` });
     this.updateControls();
   }
 
@@ -1090,9 +1460,23 @@ export class FileManager {
         ? this.downloadState
         : null;
     if (transfer) {
+      if (transfer === this.uploadState && this.uploadState?.textSave) {
+        this.showEditorMessage(message.reason === 'conflict'
+          ? { zh: '远端文件已变化，草稿未保存。请复制草稿后重新读取并合并。', en: 'The remote file changed. Copy your draft, then reopen and merge.' }
+          : serverMessage);
+      }
       this.abortTransfers(true);
+      this.renderEditor();
     }
-    this.showError(serverMessage);
+    if (transfer && 'preview' in transfer && transfer.preview) this.showPreviewError(serverMessage);
+    else this.showError(serverMessage);
+  }
+
+  private showPreviewError(message: string): void {
+    this.elements.error.hidden = true;
+    this.elements.loading.hidden = true;
+    this.elements.status.textContent = message;
+    this.onError?.(message);
   }
 
   /** Resolve a pending tree-view fetch promise with parsed, sorted entries. */
@@ -1231,7 +1615,7 @@ export class FileManager {
     this.uploadState = null;
     this.downloadState = null;
     this.hideProgress();
-    if (updateControls) this.updateControls();
+    if (updateControls) { this.updateControls(); this.renderEditor(); }
   }
 
   private failTransfer(message: string): void {
@@ -1252,7 +1636,9 @@ export class FileManager {
     this.elements.refresh.disabled = !this.ready;
     this.elements.upload.disabled = !idle;
     this.elements.mkdir.disabled = !idle;
+    this.elements.newFile.disabled = !idle;
     this.elements.download.disabled = !idle || !selected || selected.type !== 'file' || sizeExceedsLimit(selected.size);
+    this.elements.more.disabled = !idle || !selected || selected.type !== 'file';
     this.elements.rename.disabled = !idle || !selected;
     this.elements.delete.disabled = !idle || !selected;
   }

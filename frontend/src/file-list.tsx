@@ -8,12 +8,18 @@ import './file-list.css';
 interface FileListActions {
   select(index: number): void;
   activate(index: number): void;
+  contextMenu(index: number, x: number, y: number, origin: HTMLElement): void;
 }
 
-function FileRow({ node, attrs, innerRef, children }: RowRendererProps<FileListItem>) {
+function FileRow({ node, attrs, innerRef, children, actions }: RowRendererProps<FileListItem> & { actions: FileListActions }) {
   return <div {...attrs} ref={innerRef} className={`files-list-row${node.isSelected ? ' is-selected' : ''}`}
     aria-label={node.data.name} onFocus={(event) => event.stopPropagation()}
-    onClick={() => node.select()} onDoubleClick={() => node.activate()}>
+    onClick={() => node.select()} onDoubleClick={() => node.activate()}
+    onContextMenu={(event) => {
+      if (node.data.entry.type !== 'file') return;
+      event.preventDefault();
+      actions.contextMenu(node.data.index, event.clientX, event.clientY, event.currentTarget);
+    }}>
     {children}
   </div>;
 }
@@ -58,10 +64,18 @@ function FileList({ snapshot, actions }: { snapshot: FileListSnapshot; actions: 
     </div>
     <div className="files-list-viewport" ref={viewport} onKeyDownCapture={(event) => {
       // Arborist 的 Enter 默认用于内联改名；这里保持文件管理器“Enter 打开”的既有约定。
-      if (event.key !== 'Enter') return;
-      event.preventDefault();
-      event.stopPropagation();
-      tree.current?.focusedNode?.activate();
+      const focused = tree.current?.focusedNode;
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        focused?.activate();
+      } else if ((event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) && focused?.data.entry.type === 'file') {
+        event.preventDefault();
+        event.stopPropagation();
+        const row = (event.target as HTMLElement).closest<HTMLElement>('.files-list-row');
+        const rect = row?.getBoundingClientRect();
+        if (row && rect) actions.contextMenu(focused.data.index, rect.left, rect.bottom, row);
+      }
     }}>
       {/* 右侧仍是当前目录的平铺列表；目录展开由左侧负责，不额外维护第二棵远端树。 */}
       {size.width > 0 && size.height > 0 && <Tree<FileListItem>
@@ -70,7 +84,7 @@ function FileList({ snapshot, actions }: { snapshot: FileListSnapshot; actions: 
         selection={selectedId} selectionFollowsFocus disableMultiSelection
         disableDrag disableDrop disableEdit disableDeselectOnClick
         aria-label={snapshot.chinese ? '文件列表' : 'File list'}
-        renderRow={FileRow}
+        renderRow={(props) => <FileRow {...props} actions={actions} />}
         onSelect={(nodes) => {
           setSelectedId(nodes[0]?.data.id);
           actions.select(nodes[0]?.data.index ?? -1);

@@ -11,6 +11,7 @@ export interface WorkspaceSettings {
   cursorBlink: boolean;
   sshEditorDefaultOpen: boolean;
   collapsedSnippetAction: 'terminal' | 'editor';
+  hostSort: 'name' | 'updatedAt';
   sessionTabBar: SessionTabBarSettings;
 }
 
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: Readonly<WorkspaceSettings> = Object.freeze({
   cursorBlink: true,
   sshEditorDefaultOpen: true,
   collapsedSnippetAction: 'editor',
+  hostSort: 'updatedAt',
   sessionTabBar: Object.freeze({ showSettings: true, showThemeToggle: true, showLanguageToggle: true, showSourceLink: true }),
 });
 
@@ -42,6 +44,8 @@ export function validateSettings(value: unknown): WorkspaceSettings {
   if (!['block', 'bar', 'underline'].includes(fields.cursorStyle as string)) throw new Error('光标形状无效。');
   if (typeof fields.cursorBlink !== 'boolean' || typeof fields.sshEditorDefaultOpen !== 'boolean') throw new Error('开关设置必须是布尔值。');
   if (fields.collapsedSnippetAction !== 'terminal' && fields.collapsedSnippetAction !== 'editor') throw new Error('片段点击行为无效。');
+  const hostSort = Object.hasOwn(fields, 'hostSort') ? fields.hostSort : DEFAULT_SETTINGS.hostSort;
+  if (hostSort !== 'name' && hostSort !== 'updatedAt') throw new Error('主机列表排序方式无效。');
   // 旧版保存的设置没有标签栏分区；仅为这个新增分区补齐默认值。
   const tabBar = Object.hasOwn(fields, 'sessionTabBar') ? fields.sessionTabBar : DEFAULT_SETTINGS.sessionTabBar;
   if (!tabBar || typeof tabBar !== 'object' || Array.isArray(tabBar)) throw new Error('会话标签栏设置格式无效。');
@@ -52,6 +56,7 @@ export function validateSettings(value: unknown): WorkspaceSettings {
   if (Object.values(buttons).some((value) => typeof value !== 'boolean')) throw new Error('会话标签栏开关必须是布尔值。');
   return { fontSize: fields.fontSize as number, cursorStyle: fields.cursorStyle as WorkspaceSettings['cursorStyle'],
     cursorBlink: fields.cursorBlink, sshEditorDefaultOpen: fields.sshEditorDefaultOpen, collapsedSnippetAction: fields.collapsedSnippetAction,
+    hostSort,
     sessionTabBar: { showSettings: buttons.showSettings as boolean, showThemeToggle: buttons.showThemeToggle as boolean,
       showLanguageToggle: buttons.showLanguageToggle as boolean, showSourceLink: buttons.showSourceLink as boolean } };
 }

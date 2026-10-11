@@ -98,6 +98,7 @@ export class SftpWorkbench {
       this.list = new ArboristFileList(host, {
         select: (index) => this.manager.selectEntry(index),
         activate: (index) => this.manager.activateIndex(index),
+        contextMenu: (index, x, y, origin) => this.manager.openEntryMenu(index, x, y, origin),
       });
       this.panel.querySelector<HTMLTableElement>('.file-table')!.hidden = true;
       this.manager.setListView(this.list);

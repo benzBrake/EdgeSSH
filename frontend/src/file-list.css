@@ -8,8 +8,8 @@
 .files-list-row { cursor: pointer; border-bottom: 1px solid var(--border-soft); }
 .files-list-row:hover { background: var(--surface-2); }
 .files-list-row.is-selected { background: var(--accent-dim); }
-.files-list-viewport:focus-within .files-list-row:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
-.files-list-viewport [role='tree']:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.files-list-viewport:focus-within .files-list-row:focus { outline: 2px solid transparent; outline-offset: -2px; box-shadow: inset 0 0 0 2px var(--accent-dim); }
+.files-list-viewport [role='tree']:focus-visible { outline: 2px solid transparent; outline-offset: -2px; box-shadow: inset 0 0 0 2px var(--accent-dim); }
 .files-list-name { display: flex; align-items: center; gap: 10px; font-weight: 500; }
 .files-list-name > span { overflow: hidden; text-overflow: ellipsis; }
 .files-list-meta { color: var(--muted); font-variant-numeric: tabular-nums; }

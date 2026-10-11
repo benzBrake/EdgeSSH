@@ -1,12 +1,13 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { createElement, Maximize, Menu, Minimize, Server, FolderOpen, Terminal as TerminalIcon, ArrowLeft, ArrowUp, House, RefreshCw, Upload, Download, FolderPlus, Pencil, Trash2 } from 'lucide';
+import { createElement, Maximize, Menu, Minimize, Server, FolderOpen, Terminal as TerminalIcon, ArrowLeft, ArrowUp, House, RefreshCw, Upload, Download, MoreHorizontal, FilePlus2, FolderPlus, Pencil, Trash2 } from 'lucide';
 import { historyKey, historyLabel } from './history';
 import { listHosts, hostCredentials, saveHost, removeHost, updateHostSystem, type CloudHost, type Credentials, type HostSystemInfo } from './cloud-api';
 import { Dashboard } from './dashboard';
 import { systemIcon } from './os-icons';
 import { SftpWorkbench } from './sftp-workbench';
+import { WorkspaceSplit } from './workspace-split';
 import { bindSessionCreateMenu, type SessionKind } from './session-create-menu';
 import { Snippets } from './snippets';
 import { resolveSnippetTarget } from './snippet-action';
@@ -416,6 +417,7 @@ function applyLanguage(language: Language, persist = false): void {
   }
   if (fileManager) fileManager.setLanguage();
   sftpWorkbench?.refreshLanguage();
+  workspaceSplit?.refreshLanguage();
   if (fileTree) fileTree.setLanguage();
   if (processManager) processManager.setLanguage();
   dashboard?.setLanguage(language);
@@ -434,6 +436,7 @@ let connectionPanelTab: 'saved' | 'temporary' = 'saved';
 let dashboard: Dashboard | undefined;
 let snippets: Snippets | undefined;
 let sftpWorkbench: SftpWorkbench | undefined;
+let workspaceSplit: WorkspaceSplit | undefined;
 let hostKeys: Record<string, string> = {};
 let socket: WebSocket | null = null;
 let connectionState: ConnectionState = 'idle';
@@ -1697,9 +1700,16 @@ function fitTerminal(send = true): void {
       // SSH window-change when the user opens the host dashboard.
       const stage = ui.terminalStage.getBoundingClientRect();
       if (stage.width <= 0 || stage.height <= 0) return;
+      const dimensions = fitAddon.proposeDimensions();
+      if (!dimensions || !Number.isFinite(dimensions.cols) || !Number.isFinite(dimensions.rows)) return;
       const previousCols = terminal.cols;
       const previousRows = terminal.rows;
-      fitAddon.fit();
+      // FitAddon permits 2 columns / 1 row, but the SSH contract requires
+      // 10 columns / 5 rows. Keep the local grid and remote PTY in sync.
+      terminal.resize(
+        Math.max(10, Math.min(1000, dimensions.cols)),
+        Math.max(5, Math.min(1000, dimensions.rows)),
+      );
       if (send && socket?.readyState === WebSocket.OPEN
         && (terminal.cols !== previousCols || terminal.rows !== previousRows)) {
         socket.send(JSON.stringify({ type: 'resize', cols: terminal.cols, rows: terminal.rows }));
@@ -1845,6 +1855,7 @@ function setWorkspaceTab(tab: WorkspaceTab | null, focus = false, rovingTab = ta
   ui.fileManagerPanel.hidden = !filesActive;
   ui.processManagerPanel.hidden = !processesActive;
   ui.eventLog.hidden = !logActive;
+  workspaceSplit?.setOpen(tab !== null);
   ui.fileManagerTab.setAttribute('aria-selected', String(filesActive));
   ui.processManagerTab.setAttribute('aria-selected', String(processesActive));
   ui.eventToggle.setAttribute('aria-selected', String(logActive));
@@ -1929,7 +1940,7 @@ function handleServerMessage(message: ServerMessage): void {
       return;
     }
     try {
-      fileManager.attach(message.url);
+      fileManager.attach(message.url, currentTargetKey);
     } catch {
       event(bilingual('无法打开文件管理连接。', 'Could not open the file-management connection.'), 'sftp', true);
       return;
@@ -2409,6 +2420,10 @@ function handleSshClose(activeSocket: WebSocket, closeEvent: CloseEvent): void {
 }
 
 function confirmEndSession(): boolean {
+  if (fileManager.hasUnsavedDraft() && !confirm(bilingual(
+    '未保存的文件草稿将被丢弃。仍要关闭或断开会话吗？',
+    'An unsaved file draft will be discarded. Close or disconnect the session?',
+  ))) return false;
   return !fileManager.hasActiveTransfer() || confirm(bilingual(
     '文件正在传输，关闭或断开会话将取消传输。仍要继续吗？',
     'A file transfer is in progress. Closing or disconnecting the session will cancel it. Continue?',
@@ -2706,7 +2721,7 @@ ui.fullscreenTerminal.addEventListener('click', async () => {
 document.addEventListener('fullscreenchange', () => fitTerminal(true));
 for (const [id, icon] of [
   ['file-back', ArrowLeft], ['file-up', ArrowUp], ['file-home', House], ['file-refresh', RefreshCw],
-  ['file-upload', Upload], ['file-download', Download], ['file-mkdir', FolderPlus], ['file-rename', Pencil], ['file-delete', Trash2],
+  ['file-upload', Upload], ['file-download', Download], ['file-more', MoreHorizontal], ['file-new', FilePlus2], ['file-mkdir', FolderPlus], ['file-rename', Pencil], ['file-delete', Trash2],
 ] as const) {
   const button = ui.fileManagerPanel.querySelector<HTMLButtonElement>(`#${id}`)!;
   const zh = button.dataset.i18nZh ?? button.dataset.i18nAriaLabelZh!;
@@ -2855,6 +2870,11 @@ window.addEventListener('pagehide', () => {
   resetNetworkMetric();
   socket?.close(1000, 'Page closed');
 });
+window.addEventListener('beforeunload', (event) => {
+  if (!fileManager.hasUnsavedDraft()) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
 
 document.addEventListener('keydown', (keyEvent) => {
   if (keyEvent.key === 'Escape' && !languageMenu.hidden) {
@@ -2926,6 +2946,8 @@ async function initialize(): Promise<void> {
       reportError: (message) => event(message, 'sftp', true),
       localize: bilingual,
     });
+  } else {
+    workspaceSplit = new WorkspaceSplit(ui.terminalCard, () => fitTerminal(true), bilingual);
   }
   dashboard = new Dashboard({
     settings: new SettingsPage(settingsStore),

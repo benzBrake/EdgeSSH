@@ -21,7 +21,8 @@
 .sftp-workbench > .file-manager { min-height: 0; height: 100%; border: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
 .sftp-workbench .file-toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; }
 .sftp-workbench .file-actions { width: auto; flex-wrap: wrap; overflow: visible; }
-.sftp-workbench .file-path-field input { height: 32px; font-size: 13px; }
+.sftp-workbench :is(.file-path-field input, .file-filter) { height: 32px; }
+.sftp-workbench .file-path-field input { font-size: 13px; }
 .sftp-workbench .file-path-field { flex-basis: 160px; }
 .sftp-workbench .file-action { min-width: 32px; height: 32px; font-size: 12px; }
 .sftp-workbench .file-action svg { width: 16px; height: 16px; }
@@ -62,7 +63,8 @@
   .sftp-workbench #sftp-terminal-collapse { width: 40px; height: 40px; }
   .sftp-workbench .file-action { min-width: 40px; width: 40px; height: 40px; }
   .sftp-workbench .file-view-controls .file-action { width: 40px; height: 40px; }
-  .sftp-workbench .file-path-field input { font-size: 16px; height: 40px; }
+  .sftp-workbench :is(.file-path-field input, .file-filter) { height: 40px; }
+  .sftp-workbench .file-path-field input { font-size: 16px; }
   .sftp-workbench .file-action-separator { display: none; }
   .sftp-workbench .file-path-field { flex-basis: 100%; }
   .sftp-workbench .file-toolbar { display: flex; flex-wrap: wrap; }
