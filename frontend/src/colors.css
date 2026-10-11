@@ -1,0 +1,131 @@
+/* Shared roles; home views use orange, workspaces use mint. ANSI colors stay in terminalTheme(). */
+:root {
+  color-scheme: dark;
+  --bg: #0b1117;
+  --surface: #111820;
+  --surface-2: #16232e;
+  --surface-3: #203342;
+  --text: #e9f0f3;
+  --muted: #94a7b5;
+  --border: #263847;
+  --control-border: #65808f;
+  --ssh-accent: #69e6b4;
+  --ssh-selected: #17352c;
+  --accent: var(--ssh-accent);
+  --accent-strong: #94f2ca;
+  --accent-dim: var(--ssh-selected);
+  --on-accent: #0b1117;
+  --success: #69e6b4;
+  --blue: #70b7ff;
+  --warning: #f5c76b;
+  --danger: #ff7b82;
+  --on-danger: #26090d;
+  --danger-dim: #352229;
+  --warning-dim: #352e20;
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+  --overlay: rgba(2, 6, 9, 0.76);
+  --usage-lightness: 65%;
+
+  --home-bg: #101820;
+  --home-surface: #18232e;
+  --home-group: #1d2b37;
+  --home-hover: #263746;
+  --home-ink: #e6eef2;
+  --home-muted: #a0b2c2;
+  --home-line: #2c3e4b;
+  --home-control-border: #758a9b;
+  --home-accent: #ff8a5b;
+  --home-action: #ff8a5b;
+  --home-action-hover: #ffa47f;
+  --home-on-action: #101820;
+  --home-accent-hover: #ff8a5b;
+  --home-accent-soft: #352820;
+  --home-shadow: #00000033;
+  --home-overlay: var(--overlay);
+
+  /* Fixed dark reading/editing regions never inherit the light palette. */
+  --terminal: #080d12;
+  --terminal-input: #101a24;
+  --terminal-text: #d7e2e6;
+  --terminal-muted: #94a7b5;
+  --terminal-input-border: #304554;
+  --terminal-focus: #69e6b4;
+  --terminal-selection: #294b43;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #edf2f3;
+  --surface: #ffffff;
+  --surface-2: #f4f7f7;
+  --surface-3: #e5edec;
+  --text: #172329;
+  --muted: #5b6f75;
+  --border: #cbd9d8;
+  --control-border: #73868c;
+  --ssh-accent: #0c6d4e;
+  --ssh-selected: #e5f3ed;
+  --accent: var(--ssh-accent);
+  --accent-strong: #095a40;
+  --accent-dim: var(--ssh-selected);
+  --on-accent: #ffffff;
+  --success: #0b7a4b;
+  --blue: #246da8;
+  --warning: #96600b;
+  --danger: #b42318;
+  --on-danger: #ffffff;
+  --danger-dim: #fff1f0;
+  --warning-dim: #fff5dc;
+  --shadow: 0 20px 50px rgba(38, 64, 67, 0.13);
+  --overlay: #11182766;
+  --usage-lightness: 26%;
+
+  --home-bg: #fafbfd;
+  --home-surface: #ffffff;
+  --home-group: #f2f4f7;
+  --home-hover: #e9edf2;
+  --home-ink: #111827;
+  --home-muted: #667085;
+  --home-line: #e9ecf1;
+  --home-control-border: #7c8799;
+  --home-accent: #f4511e;
+  --home-action: #d53b0a;
+  --home-action-hover: #b83208;
+  --home-on-action: #ffffff;
+  --home-accent-hover: #b83208;
+  --home-accent-soft: #fff0e9;
+  --home-shadow: #1720351a;
+}
+
+/* Existing component tokens remain aliases of the same surface roles. */
+:root {
+  --panel: var(--surface);
+  --border-soft: var(--border);
+  --muted-2: var(--muted);
+  --workspace-bg: var(--bg);
+  --workspace-glow: transparent;
+  --terminal-panel: var(--surface);
+  --terminal-toolbar: var(--surface-2);
+  --terminal-control: var(--surface-3);
+  --terminal-border: var(--border);
+  --home-danger: var(--danger);
+  --home-success: var(--success);
+}
+
+body:is([data-view='dashboard'], [data-view='snippets'], [data-view='forward'], [data-view='settings']) {
+  --bg: var(--home-bg);
+  --panel: var(--home-surface);
+  --surface: var(--home-surface);
+  --surface-2: var(--home-group);
+  --surface-3: var(--home-hover);
+  --text: var(--home-ink);
+  --muted: var(--home-muted);
+  --muted-2: var(--home-muted);
+  --border: var(--home-line);
+  --border-soft: var(--home-line);
+  --control-border: var(--home-control-border);
+  --accent: var(--home-accent-hover);
+  --accent-strong: var(--home-action-hover);
+  --accent-dim: var(--home-accent-soft);
+  --on-accent: var(--home-on-action);
+}

@@ -249,6 +249,8 @@ export class Dashboard {
     this.get('#host-total').textContent = `${hosts.length} 台主机 · ${hosts.filter((host) => !host.location).length} 台位置未知`;
   }
 
+  refreshColors(): void { this.globe?.refreshColors(); }
+
   async refresh(): Promise<void> {
     const button = this.get<HTMLButtonElement>('#refresh-hosts');
     button.disabled = true;

@@ -1,8 +1,4 @@
 body[data-view='settings'] { overflow-y: auto; background: var(--home-bg); }
-html[data-theme='dark'] #dashboard:has(.settings-page:not([hidden])) {
-  --home-bg: #101820; --home-surface: #18232e; --home-ink: #e6eef2; --home-muted: #a0b2c2;
-  --home-line: #2c3e4b; --home-accent-soft: #f4511e1f; --home-danger: #ff929b; color-scheme: dark;
-}
 .settings-page { width: 100%; max-width: 1000px; min-width: 0; margin-inline: auto; padding: 36px 32px; }
 .settings-page fieldset { min-width: 0; margin: 0; padding: 4px 20px 0; border: 1px solid var(--home-line); border-radius: 12px; background: var(--home-surface); }
 .settings-page legend { padding: 0 8px; font-size: 15px; font-weight: 600; }
@@ -14,13 +10,12 @@ html[data-theme='dark'] #dashboard:has(.settings-page:not([hidden])) {
 .settings-row:last-child { border-bottom: 0; }
 .settings-row > span { min-width: 0; }
 .settings-row small { display: block; margin-top: 4px; color: var(--home-muted); font-size: 12px; line-height: 1.6; }
-#dashboard .settings-row :is(input[type='number'], select) { flex-shrink: 0; width: 220px; max-width: 100%; min-height: 36px; border: 1px solid var(--home-line); border-radius: 7px; padding: 6px 10px; background: var(--home-bg); color: var(--home-ink); }
-#dashboard .settings-row input[type='checkbox'] { flex: 0 0 20px; width: 20px; height: 20px; accent-color: var(--home-accent); }
+#dashboard .settings-row :is(input[type='number'], select) { flex-shrink: 0; width: 220px; max-width: 100%; min-height: 36px; border: 1px solid var(--home-control-border); border-radius: 7px; padding: 6px 10px; background: var(--home-bg); color: var(--home-ink); }
+#dashboard .settings-row input[type='checkbox'] { flex: 0 0 20px; width: 20px; height: 20px; accent-color: var(--home-action); }
 .settings-status { min-height: 24px; margin-top: 12px; font-size: 13px; line-height: 1.7; color: var(--home-muted); overflow-wrap: anywhere; }
 .settings-status.is-error { color: var(--home-danger); }
 .settings-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .settings-actions [type='submit'] { margin-left: auto; }
-#dashboard .settings-page .home-button.primary { color: #fff; }
 .settings-demo { padding: 14px 18px; border: 1px solid var(--home-line); border-radius: 8px; color: var(--home-muted); line-height: 1.7; }
 .settings-page [hidden] { display: none !important; }
 @media (max-width: 600px) {

@@ -873,7 +873,7 @@ function drawNetworkSparkline(): void {
   const slot = width / NET_SPARK_POINTS;
   // Leave a small gap between bars; floor so a 1px slot still draws a visible bar.
   const barWidth = Math.max(1, Math.floor(slot * 0.7));
-  ctx.fillStyle = '#69e6b4';
+  ctx.fillStyle = getComputedStyle(canvas).getPropertyValue('--success').trim();
   for (let i = 0; i < NET_SPARK_POINTS; i += 1) {
     const value = data[i];
     const normalized = (value - minimum) / span;
@@ -1107,12 +1107,14 @@ processManager = new ProcessManager({
 });
 
 function terminalTheme(): Record<string, string> {
+  const style = getComputedStyle(document.documentElement);
+  const color = (name: string) => style.getPropertyValue(name).trim();
   return {
-    background: '#080d12',
-    foreground: '#d7e2e6',
-    cursor: '#69e6b4',
-    cursorAccent: '#080d12',
-    selectionBackground: '#294b43',
+    background: color('--terminal'),
+    foreground: color('--terminal-text'),
+    cursor: color('--terminal-focus'),
+    cursorAccent: color('--terminal'),
+    selectionBackground: color('--terminal-selection'),
     black: '#121b22',
     red: '#ff7b82',
     green: '#69e6b4',
@@ -2871,6 +2873,10 @@ document.addEventListener('keydown', (keyEvent) => {
 });
 
 let storedTheme: string | null = null;
+new MutationObserver(() => {
+  dashboard?.refreshColors();
+  drawNetworkSparkline();
+}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 try { storedTheme = localStorage.getItem(THEME_STORAGE_KEY); } catch { /* Storage can be disabled. */ }
 if (storedTheme === 'light' || storedTheme === 'dark') document.documentElement.dataset.theme = storedTheme;
 async function initialize(): Promise<void> {

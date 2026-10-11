@@ -36,8 +36,8 @@
 
 ## 样式与验证
 
-主样式为 `src/style.css`，功能样式与组件并列；保留主题变量、中英文、键盘导航、375px 手机及更窄视口行为。`public/flags/` 是静态资源，`src/vendor/` 是 vendored 依赖，不做无关批量修改。
+颜色变量集中在 `src/colors.css`，首页沿用橙色、工作台沿用薄荷绿，并区分表面、控件边框、按钮文字、选中和语义状态色。`src/style.css` 与组件样式消费这些变量；终端输出和命令输入使用独立的固定深色变量，Canvas 在主题变化后重绘。主样式为 `src/style.css`，功能样式与组件并列；保留主题变量、中英文、键盘导航、375px 手机及更窄视口行为。`public/flags/` 是静态资源，`src/vendor/` 是 vendored 依赖，不做无关批量修改。
 
-首页与终端页的目标配色、表面层次和自动／浅色／暗色选择规则见[颜色模式设计](../design/COLOR_MODES.md)。该方案已确认，尚未实现；文档中单独列出当前源码差距与实施验收要求。
+首页与终端页的目标配色、表面层次和自动／浅色／暗色选择规则见[颜色模式设计](../design/COLOR_MODES.md)。语义颜色和明暗表面已实现；自动模式、三项菜单及首屏主题初始化尚未实现，当前仍为浅色／暗色切换。文档中单独列出剩余差距与实施验收要求。
 
 从根运行 `npm run typecheck`、`npm run build:web`；行为改动选择 `tests/browser/` 中对应的 settings、files、dashboard、snippets、navigation、forwarding 或 ssh-failure 用例。测试模拟 API/WebSocket，不能替代真实服务器验证。

@@ -76,25 +76,30 @@ test('已保存主机删除需要确认，弹窗在大屏双列、小屏单列�
   await expect(cards.first().locator('strong')).toHaveText('Backup server');
 });
 
-test('首页切换暗色模式时只更新会话栏主题', async ({ page }) => {
+test('首页和会话栏共用明暗表面，地球在减少动态效果时仍更新颜色', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.addInitScript(() => localStorage.setItem('workers-webssh.theme', 'light'));
   await dashboardFixture(page);
-
-  const sessionBar = page.locator('#session-tabs');
-  const homeTab = page.locator('#session-home');
-  const dashboard = page.locator('#dashboard');
-  const lightBarBackground = await sessionBar.evaluate((element) => getComputedStyle(element).backgroundColor);
-  const lightHomeTabColor = await homeTab.evaluate((element) => getComputedStyle(element).color);
-  const lightDashboardBackground = await dashboard.evaluate((element) => getComputedStyle(element).backgroundColor);
-
+  const canvas = page.locator('#host-globe canvas');
+  await expect(canvas).toBeVisible();
+  const hasSurface = (rgb: number[]) => canvas.evaluate((element, rgb) => {
+    const canvas = element as HTMLCanvasElement;
+    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i] === rgb[0] && pixels[i + 1] === rgb[1] && pixels[i + 2] === rgb[2] && pixels[i + 3] === 255) return true;
+    }
+    return false;
+  }, rgb);
+  await expect.poll(() => hasSurface([255, 255, 255])).toBe(true);
+  await expect(page.locator('#dashboard')).toHaveCSS('background-color', 'rgb(250, 251, 253)');
   if (page.viewportSize()!.width <= 600) await page.locator('#session-menu-toggle').click();
   await page.locator('#theme-toggle').click();
-
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect.poll(() => sessionBar.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(lightBarBackground);
-  await expect.poll(() => homeTab.evaluate((element) => getComputedStyle(element).color)).toBe('rgb(244, 81, 30)');
-  expect(await homeTab.evaluate((element) => getComputedStyle(element).color)).not.toBe(lightHomeTabColor);
-  await expect.poll(() => dashboard.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(lightDashboardBackground);
+  await expect(page.locator('#session-home')).toHaveCSS('color', 'rgb(255, 138, 91)');
+  await expect(page.locator('#dashboard')).toHaveCSS('background-color', 'rgb(16, 24, 32)');
+  await expect(page.locator('#dashboard')).toHaveCSS('color-scheme', 'dark');
+  await expect(page.locator('.home-rail')).toHaveCSS('background-color', 'rgb(24, 35, 46)');
+  await expect.poll(() => hasSurface([24, 35, 46])).toBe(true);
 });
 
 test('账户入口跟随当前语言显示', async ({ page }) => {
