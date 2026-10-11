@@ -57,6 +57,8 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
 #dashboard .host-filters button { padding: 12px 2px; color: var(--home-muted); background: none; font-size: 12px; white-space: nowrap; border-bottom: 3px solid transparent; }
 #dashboard .host-filters button.active { color: var(--home-ink); border-color: var(--home-action); }
 .host-list { min-height: 282px; }
+.host-sort-control { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: -4px 0 8px; color: var(--home-muted); font-size: 11px; }
+#dashboard .host-sort-control select { min-height: 30px; border: 1px solid var(--home-control-border); border-radius: var(--home-radius-sm); padding: 3px 8px; background: var(--home-surface); color: var(--home-ink); font: inherit; }
 .host-group-heading { font-size: 12px; font-weight: 650; margin: 18px 0 9px; color: var(--home-muted); }
 .host-row { container-type: inline-size; display: grid; grid-template-columns: 36px minmax(0, 1fr) 190px 26px 26px auto; grid-template-areas: "symbol copy location edit delete connect"; align-items: center; gap: 10px; border: 1px solid var(--home-line); border-radius: var(--home-radius-md); margin-bottom: 9px; padding: 14px 12px; background: var(--home-surface); }
 .host-row:hover { --home-muted: var(--home-ink); border-color: var(--home-control-border); background: var(--home-hover); }

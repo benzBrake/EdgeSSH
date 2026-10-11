@@ -35,6 +35,9 @@ export class SettingsPage {
       <label class="settings-row"><span>${translated('SSH 命令编辑器默认展开', 'Expand SSH command editor by default')}<small>${translated('只影响新建 SSH 工作台。', 'Applies only to new SSH workspaces.')}</small></span><input name="sshEditorDefaultOpen" type="checkbox"></label>
       <label class="settings-row"><span>${translated('编辑器收起时点击片段', 'Snippet clicks when editor is collapsed')}<small>${translated('输入终端不追加回车；多行片段仍进入编辑器。', 'Terminal input adds no Enter; multiline snippets still open in the editor.')}</small></span><select name="collapsedSnippetAction">
         <option value="editor" data-i18n-zh="展开并填入编辑器" data-i18n-en="Expand and fill editor">展开并填入编辑器</option><option value="terminal" data-i18n-zh="输入到终端" data-i18n-en="Insert into terminal">输入到终端</option></select></label>
+      </fieldset><fieldset disabled><legend>${translated('主机列表', 'Host list')}</legend>
+      <label class="settings-row"><span>${translated('主机排序', 'Host sorting')}<small>${translated('名称按字母升序；修改时间按最新优先。', 'Names sort A–Z; modified time sorts newest first.')}</small></span><select name="hostSort">
+        <option value="name" data-i18n-zh="名称" data-i18n-en="Name">名称</option><option value="updatedAt" data-i18n-zh="修改时间" data-i18n-en="Modified time">修改时间</option></select></label>
       </fieldset><div class="settings-status" role="status" aria-live="polite"></div>
       <div class="settings-actions"><button class="home-button" type="button" data-reload>${translated('重新加载', 'Reload')}</button>
       <button class="home-button" type="button" data-defaults>${translated('恢复默认', 'Restore defaults')}</button>
@@ -70,6 +73,7 @@ export class SettingsPage {
     return { fontSize: Number(this.field('fontSize').value), cursorStyle: this.field('cursorStyle').value as WorkspaceSettings['cursorStyle'],
       cursorBlink: this.field<HTMLInputElement>('cursorBlink').checked, sshEditorDefaultOpen: this.field<HTMLInputElement>('sshEditorDefaultOpen').checked,
       collapsedSnippetAction: this.field('collapsedSnippetAction').value as WorkspaceSettings['collapsedSnippetAction'],
+      hostSort: this.field('hostSort').value as WorkspaceSettings['hostSort'],
       sessionTabBar: { showSettings: this.field<HTMLInputElement>('showSettings').checked,
         showThemeToggle: this.field<HTMLInputElement>('showThemeToggle').checked,
         showLanguageToggle: this.field<HTMLInputElement>('showLanguageToggle').checked,
@@ -80,6 +84,7 @@ export class SettingsPage {
     this.field<HTMLInputElement>('cursorBlink').checked = settings.cursorBlink;
     this.field<HTMLInputElement>('sshEditorDefaultOpen').checked = settings.sshEditorDefaultOpen;
     this.field('collapsedSnippetAction').value = settings.collapsedSnippetAction;
+    this.field('hostSort').value = settings.hostSort;
     for (const name of Object.keys(settings.sessionTabBar) as (keyof WorkspaceSettings['sessionTabBar'])[]) {
       this.field<HTMLInputElement>(name).checked = settings.sessionTabBar[name];
     }

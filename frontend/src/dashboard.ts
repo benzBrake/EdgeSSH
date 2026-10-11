@@ -79,6 +79,7 @@ export class Dashboard {
               <div class="home-section-heading"><div><p class="home-eyebrow">YOUR INFRASTRUCTURE</p><h1 id="hosts-heading">我的主机</h1><p>安全保存，随处连接。</p></div><button class="home-button" data-add>＋ 添加主机</button></div>
               <label class="home-search">${icon('search')}<input id="host-search" type="search" placeholder="搜索主机、分组或 IP 地址" aria-label="搜索主机"><kbd>Ctrl K</kbd></label>
               <div class="host-filters" id="host-filters" aria-label="按分组筛选"></div>
+              <label class="host-sort-control">排序方式 <select id="host-sort"><option value="updatedAt">修改时间</option><option value="name">名称</option></select></label>
               <div id="host-list" class="host-list" aria-live="polite"><p class="home-empty">正在从云端加载主机…</p></div>
               <div class="host-list-footer"><span id="host-total">0 台主机</span><button class="home-text-button" id="refresh-hosts">刷新列表 ↻</button></div>
             </section>
@@ -175,6 +176,22 @@ export class Dashboard {
     this.get('#use-copy-public-key').addEventListener('click', () => void this.useGeneratedKey('copy'));
     this.get('#use-download-public-key').addEventListener('click', () => void this.useGeneratedKey('download'));
     this.get('#host-search').addEventListener('input', () => this.renderList());
+    this.actions.settings.store.addEventListener('change', () => {
+      const settings = this.actions.settings.store.snapshot?.settings;
+      if (settings) this.get<HTMLSelectElement>('#host-sort').value = settings.hostSort;
+      this.renderList();
+    });
+    this.get<HTMLSelectElement>('#host-sort').addEventListener('change', async (event) => {
+      const store = this.actions.settings.store;
+      const snapshot = store.snapshot;
+      const select = event.currentTarget as HTMLSelectElement;
+      if (!snapshot || store.saving || store.loading) { select.value = snapshot?.settings.hostSort ?? 'updatedAt'; return; }
+      try { await store.save({ ...snapshot.settings, hostSort: select.value as 'name' | 'updatedAt' }, snapshot.revision); }
+      catch (error) {
+        select.value = store.snapshot?.settings.hostSort ?? 'updatedAt';
+        this.notice(error instanceof Error ? error.message : '主机排序设置保存失败。');
+      }
+    });
     this.get('#refresh-hosts').addEventListener('click', () => void this.refresh());
     this.get('#rail-overview').addEventListener('click', () => {
       if (!this.canLeaveSettings()) return;
@@ -386,6 +403,11 @@ export class Dashboard {
     const query = this.get<HTMLInputElement>('#host-search').value.trim().toLowerCase();
     const hosts = this.hosts.filter((host) => (!this.group || host.group === this.group)
       && [host.name, host.host, host.username, host.group, host.location?.city ?? ''].join(' ').toLowerCase().includes(query));
+    const sort = this.actions.settings.store.snapshot?.settings.hostSort ?? 'updatedAt';
+    const collator = new Intl.Collator(this.language, { numeric: true, sensitivity: 'base' });
+    hosts.sort((left, right) => sort === 'name'
+      ? collator.compare(left.name, right.name) || right.updatedAt - left.updatedAt
+      : right.updatedAt - left.updatedAt || collator.compare(left.name, right.name));
     const list = this.get('#host-list'); list.replaceChildren();
     if (!hosts.length) {
       const empty = document.createElement('div'); empty.className = 'home-empty';
@@ -517,6 +539,7 @@ export class Dashboard {
     const english: Record<string, string> = {
       '总览': 'Overview', '主机': 'Hosts', '文件管理': 'Files', '代码片段': 'Snippets', '端口转发': 'Port forwarding', '设置': 'Settings',
       '我的主机': 'My hosts', '安全保存，随处连接。': 'Save securely, connect anywhere.', '添加主机': 'Add host', '新建主机': 'New host', '＋ 新建主机': '+ New host', '＋ 添加主机': '+ Add host',
+      '排序方式': 'Sort by', '修改时间': 'Modified time', '名称': 'Name',
       '主机地址': 'Host address', '搜索主机、分组或 IP 地址': 'Search hosts, groups, or IP addresses', '刷新列表 ↻': 'Refresh list ↻',
       '散布全球，': 'Around the world,', '就在手边。': 'right at hand.', '点击国旗，即刻连接。': 'Click a flag to connect.', '暂停旋转': 'Pause rotation',
       '继续旋转': 'Resume rotation', '临时连接': 'Temporary connection', '打开完整 SSH 工作台': 'Open the full SSH workspace',
