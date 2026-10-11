@@ -1,4 +1,5 @@
 import { expect, type Page, type WebSocketRoute } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { DEFAULT_SETTINGS, type SettingsSnapshot, type WorkspaceSettings } from '../../src/accounts/settings-data';
 
 const fingerprint = `SHA256:${'A'.repeat(43)}`;
@@ -23,6 +24,10 @@ export async function fileFixture(page: Page, options: { firstSeen?: boolean; cr
     ['/root', [entry('backups', 'directory'), entry('deploy', 'directory'), entry('README.md'), entry('nginx.conf', 'file', 2480)]],
     ['/root/backups', []],
     ['/root/deploy', []],
+  ]);
+  const files = new Map<string, Buffer>([
+    ['/root/README.md', Buffer.from('hello files\n')],
+    ['/root/nginx.conf', Buffer.from('server { listen 80; }\n')],
   ]);
   const calls: Array<Record<string, any>> = [];
   const sshSockets: WebSocketRoute[] = [];
@@ -74,14 +79,17 @@ export async function fileFixture(page: Page, options: { firstSeen?: boolean; cr
   });
   await page.routeWebSocket('**/api/sftp?*', (ws) => {
     sftpSockets.push(ws);
-    let upload: { requestId: string; path: string; size: number } | undefined;
+    let upload: { requestId: string; path: string; size: number; expectedSha256?: string } | undefined;
+    let uploadChunks: Buffer[] = [];
     const send = (data: object) => ws.send(JSON.stringify(data));
     const parent = (path: string) => path.slice(0, path.lastIndexOf('/')) || '/';
     const name = (path: string) => path.slice(path.lastIndexOf('/') + 1);
     ws.onMessage((raw) => {
       if (typeof raw !== 'string') {
-        uploaded.push(Buffer.from(raw));
-        send({ type: 'sftp_upload_progress', requestId: upload!.requestId, loaded: uploaded.reduce((sum, chunk) => sum + chunk.length, 0) });
+        const chunk = Buffer.from(raw);
+        uploaded.push(chunk);
+        uploadChunks.push(chunk);
+        send({ type: 'sftp_upload_progress', requestId: upload!.requestId, loaded: uploadChunks.reduce((sum, item) => sum + item.length, 0) });
         return;
       }
       const message = JSON.parse(raw);
@@ -106,15 +114,38 @@ export async function fileFixture(page: Page, options: { firstSeen?: boolean; cr
       }
       if (['sftp_mkdir', 'sftp_rename', 'sftp_delete', 'sftp_rmdir'].includes(type)) send({ type: `${type}_result`, requestId });
       if (type === 'sftp_upload_start') {
-        upload = message;
-        if (!options.holdUpload) send({ type: 'sftp_upload_ready', requestId });
+        const current = files.get(path);
+        const digest = current && createHash('sha256').update(current).digest('hex');
+        if (message.expectedSha256 && digest !== message.expectedSha256) {
+          send({ type: 'sftp_error', requestId, operation: 'upload', reason: 'conflict', message: 'Remote file changed during the edit' });
+        } else if (!message.overwrite && current) {
+          send({ type: 'sftp_error', requestId, operation: 'upload', message: 'File already exists' });
+        } else {
+          upload = message;
+          uploadChunks = [];
+          if (!options.holdUpload) send({ type: 'sftp_upload_ready', requestId });
+        }
       }
       if (type === 'sftp_upload_end') {
-        directories.get(parent(upload!.path))!.push(entry(name(upload!.path), 'file', upload!.size));
-        send({ type: 'sftp_upload_complete', requestId });
+        const current = files.get(upload!.path);
+        const digest = current && createHash('sha256').update(current).digest('hex');
+        if (upload!.expectedSha256 && digest !== upload!.expectedSha256) {
+          send({ type: 'sftp_error', requestId, operation: 'upload', reason: 'conflict', message: 'Remote file changed during the edit' });
+        } else {
+          files.set(upload!.path, Buffer.concat(uploadChunks));
+          const listing = directories.get(parent(upload!.path))!;
+          const item = listing.find(entry => entry.name === name(upload!.path));
+          if (item) item.size = upload!.size;
+          else listing.push(entry(name(upload!.path), 'file', upload!.size));
+          send({ type: 'sftp_upload_complete', requestId });
+        }
       }
       if (type === 'sftp_download') {
-        const data = Buffer.from('hello files\n');
+        const data = files.get(path) ?? Buffer.from('hello files\n');
+        if (message.maxBytes !== undefined && data.length > message.maxBytes) {
+          send({ type: 'sftp_error', requestId, operation: 'download', message: 'File exceeds the text preview limit' });
+          return;
+        }
         send({ type: 'sftp_download_start', requestId, size: data.length });
         ws.send(data);
         send({ type: 'sftp_download_done', requestId, size: data.length });
@@ -125,7 +156,7 @@ export async function fileFixture(page: Page, options: { firstSeen?: boolean; cr
   if (options.workbench === 'ssh') await page.locator('#session-new').click();
   else if (options.workbench !== 'none') await page.locator('#rail-files').click();
   if (options.workbench !== 'none') await expect(fileSession(page).locator('#connection-panel')).toHaveAttribute('aria-hidden', 'false');
-  return { hosts, calls, sshSockets, sftpSockets, uploaded, directories, settingsState };
+  return { hosts, calls, sshSockets, sftpSockets, uploaded, directories, files, settingsState };
 }
 
 export async function connectFiles(page: Page, id = 'alpha') {

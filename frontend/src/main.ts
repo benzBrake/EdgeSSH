@@ -1,7 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { createElement, Maximize, Menu, Minimize, Server, FolderOpen, Terminal as TerminalIcon, ArrowLeft, ArrowUp, House, RefreshCw, Upload, Download, FolderPlus, Pencil, Trash2 } from 'lucide';
+import { createElement, Maximize, Menu, Minimize, Server, FolderOpen, Terminal as TerminalIcon, ArrowLeft, ArrowUp, House, RefreshCw, Upload, Download, MoreHorizontal, FilePlus2, FolderPlus, Pencil, Trash2 } from 'lucide';
 import { historyKey, historyLabel } from './history';
 import { listHosts, hostCredentials, saveHost, removeHost, updateHostSystem, type CloudHost, type Credentials, type HostSystemInfo } from './cloud-api';
 import { Dashboard } from './dashboard';
@@ -1929,7 +1929,7 @@ function handleServerMessage(message: ServerMessage): void {
       return;
     }
     try {
-      fileManager.attach(message.url);
+      fileManager.attach(message.url, currentTargetKey);
     } catch {
       event(bilingual('无法打开文件管理连接。', 'Could not open the file-management connection.'), 'sftp', true);
       return;
@@ -2409,6 +2409,10 @@ function handleSshClose(activeSocket: WebSocket, closeEvent: CloseEvent): void {
 }
 
 function confirmEndSession(): boolean {
+  if (fileManager.hasUnsavedDraft() && !confirm(bilingual(
+    '未保存的文件草稿将被丢弃。仍要关闭或断开会话吗？',
+    'An unsaved file draft will be discarded. Close or disconnect the session?',
+  ))) return false;
   return !fileManager.hasActiveTransfer() || confirm(bilingual(
     '文件正在传输，关闭或断开会话将取消传输。仍要继续吗？',
     'A file transfer is in progress. Closing or disconnecting the session will cancel it. Continue?',
@@ -2706,7 +2710,7 @@ ui.fullscreenTerminal.addEventListener('click', async () => {
 document.addEventListener('fullscreenchange', () => fitTerminal(true));
 for (const [id, icon] of [
   ['file-back', ArrowLeft], ['file-up', ArrowUp], ['file-home', House], ['file-refresh', RefreshCw],
-  ['file-upload', Upload], ['file-download', Download], ['file-mkdir', FolderPlus], ['file-rename', Pencil], ['file-delete', Trash2],
+  ['file-upload', Upload], ['file-download', Download], ['file-more', MoreHorizontal], ['file-new', FilePlus2], ['file-mkdir', FolderPlus], ['file-rename', Pencil], ['file-delete', Trash2],
 ] as const) {
   const button = ui.fileManagerPanel.querySelector<HTMLButtonElement>(`#${id}`)!;
   const zh = button.dataset.i18nZh ?? button.dataset.i18nAriaLabelZh!;
@@ -2854,6 +2858,11 @@ window.addEventListener('pagehide', () => {
   processManager.reset();
   resetNetworkMetric();
   socket?.close(1000, 'Page closed');
+});
+window.addEventListener('beforeunload', (event) => {
+  if (!fileManager.hasUnsavedDraft()) return;
+  event.preventDefault();
+  event.returnValue = '';
 });
 
 document.addEventListener('keydown', (keyEvent) => {

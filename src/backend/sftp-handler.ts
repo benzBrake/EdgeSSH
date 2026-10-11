@@ -14,7 +14,10 @@ const MAX_DIRECTORY_ENTRIES = 2000;
 const MAX_DIRECTORY_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_FILENAME_BYTES = 1024;
 const MAX_FILE_SIZE = 64 * 1024 * 1024;
+const MAX_TEXT_FILE_SIZE = 1024 * 1024;
 const TRANSFER_CHUNK_SIZE = 64 * 1024;
+
+class SFTPConflictError extends Error {}
 
 type SendChannelData = (channel: SSHChannel, chunk: ChannelDataChunk) => Promise<void>;
 type SendJSON = (message: unknown) => void;
@@ -29,6 +32,8 @@ interface UploadState {
   handle: Uint8Array;
   handleClosed: boolean;
   temporary: boolean;
+  expectedSha256?: string;
+  originalAttrs?: SFTPAttrs;
 }
 
 interface DownloadState {
@@ -136,7 +141,7 @@ export class SFTPHandler {
     }
   }
 
-  async download(requestId: string, path: string): Promise<void> {
+  async download(requestId: string, path: string, maxBytes?: number): Promise<void> {
     let handle: Uint8Array | null = null;
     const download: DownloadState = { requestId, cancelled: false };
     try {
@@ -144,10 +149,13 @@ export class SFTPHandler {
       this.validatePath(path);
       if (this.activeDownload) throw new Error('Another download is already in progress');
       this.activeDownload = download;
-      const attrs = await this.client.stat(path);
+      const attrs = maxBytes === undefined ? await this.client.stat(path) : await this.client.lstat(path);
+      if (maxBytes !== undefined && getSFTPFileKind(attrs) !== 'file') throw new Error('Text preview requires a regular file');
       this.assertDownloadActive(download);
       const size = this.safeSize(attrs);
-      if (size !== null && size > MAX_FILE_SIZE) throw new Error('File exceeds the 64 MiB transfer limit');
+      const limit = maxBytes ?? MAX_FILE_SIZE;
+      if (size !== null && size > limit) throw new Error(maxBytes === undefined
+        ? 'File exceeds the 64 MiB transfer limit' : 'File exceeds the text preview limit');
       handle = await this.client.openFile(path, SFTP_OPEN_FLAGS.READ);
       this.assertDownloadActive(download);
       const filename = path.split('/').filter(Boolean).pop() || 'download';
@@ -162,7 +170,7 @@ export class SFTPHandler {
         const chunk = await this.client.readFile(handle, offset, length);
         this.assertDownloadActive(download);
         if (chunk === null || chunk.length === 0) break;
-        if (offset + chunk.length > MAX_FILE_SIZE) throw new Error('File exceeds the 64 MiB transfer limit');
+        if (offset + chunk.length > limit) throw new Error('File exceeds the transfer limit');
         this.sendBinary(chunk);
         offset += chunk.length;
         this.sendJSON(size === null
@@ -170,6 +178,9 @@ export class SFTPHandler {
           : { type: 'sftp_download_progress', requestId, loaded: offset, total: size });
       }
       this.assertDownloadActive(download);
+      if (maxBytes !== undefined && size !== null && offset !== size) {
+        throw new Error('Remote file changed during text preview');
+      }
       this.sendJSON({ type: 'sftp_download_done', requestId, filename, size: offset });
     } catch (error) {
       if (download.cancelled) this.sendJSON({ type: 'sftp_download_cancelled', requestId });
@@ -184,16 +195,27 @@ export class SFTPHandler {
     if (this.activeDownload?.requestId === requestId) this.activeDownload.cancelled = true;
   }
 
-  async startUpload(requestId: string, path: string, size: number, overwrite: boolean): Promise<void> {
+  async startUpload(requestId: string, path: string, size: number, overwrite: boolean,
+    expectedSha256?: string, preserveMetadata = false): Promise<void> {
     try {
       this.assertReady();
       this.validatePath(path);
       if (this.upload) throw new Error('Another upload is already in progress');
       if (!Number.isSafeInteger(size) || size < 0 || size > MAX_FILE_SIZE) throw new Error('Invalid upload size or file exceeds the 64 MiB transfer limit');
+      if (preserveMetadata !== (expectedSha256 !== undefined) ||
+        (expectedSha256 !== undefined && (!overwrite || size > MAX_TEXT_FILE_SIZE || !/^[a-f0-9]{64}$/.test(expectedSha256)))) {
+        throw new Error('Invalid text save options');
+      }
+      let originalAttrs: SFTPAttrs | undefined;
+      if (expectedSha256) {
+        originalAttrs = await this.checkedTextAttrs(path);
+        await this.assertTextVersion(path, expectedSha256);
+      }
       const uploadPath = overwrite ? this.temporaryUploadPath(path) : path;
       const handle = await this.client.openFile(
         uploadPath,
         SFTP_OPEN_FLAGS.WRITE | SFTP_OPEN_FLAGS.CREATE | SFTP_OPEN_FLAGS.TRUNCATE | SFTP_OPEN_FLAGS.EXCLUSIVE,
+        originalAttrs?.permissions === undefined ? undefined : { permissions: originalAttrs.permissions & 0o7777 },
       );
       this.upload = {
         requestId,
@@ -204,6 +226,8 @@ export class SFTPHandler {
         handle,
         handleClosed: false,
         temporary: overwrite,
+        expectedSha256,
+        originalAttrs,
       };
       this.sendJSON({ type: 'sftp_upload_ready', requestId, path, size });
     } catch (error) {
@@ -216,8 +240,10 @@ export class SFTPHandler {
     if (!upload) throw new Error('No upload is in progress');
     if (data.length === 0 || data.length > TRANSFER_CHUNK_SIZE || upload.received + data.length > upload.size) {
       const requestId = upload.requestId;
-      await this.abortUpload(upload, true);
-      this.reportError('upload', new Error('Invalid upload chunk'), requestId);
+      let error: unknown = new Error('Invalid upload chunk');
+      try { await this.abortUpload(upload, true); }
+      catch (cleanupError) { error = new Error(`${String(error)}; cleanup failed: ${String(cleanupError)}`); }
+      this.reportError('upload', error, requestId);
       return;
     }
     try {
@@ -226,7 +252,8 @@ export class SFTPHandler {
       this.sendJSON({ type: 'sftp_upload_progress', requestId: upload.requestId, loaded: upload.received, total: upload.size });
     } catch (error) {
       const requestId = upload.requestId;
-      await this.abortUpload(upload, true);
+      try { await this.abortUpload(upload, true); }
+      catch (cleanupError) { error = new Error(`${String(error)}; cleanup failed: ${String(cleanupError)}`); }
       this.reportError('upload', error, requestId);
     }
   }
@@ -236,13 +263,25 @@ export class SFTPHandler {
     try {
       if (!upload || upload.requestId !== requestId) throw new Error('No matching upload is in progress');
       if (upload.received !== upload.size) throw new Error('Upload ended before the declared size was received');
+      if (upload.originalAttrs) await this.preserveUploadMetadata(upload);
       await this.client.closeHandle(upload.handle);
       upload.handleClosed = true;
+      if (upload.expectedSha256) {
+        const current = await this.assertTextVersion(upload.destinationPath, upload.expectedSha256);
+        const original = upload.originalAttrs!;
+        if (current.uid !== original.uid || current.gid !== original.gid ||
+          current.permissions !== original.permissions || current.mtime !== original.mtime) {
+          throw new SFTPConflictError('Remote file attributes changed during the edit');
+        }
+      }
       if (upload.temporary) await this.client.rename(upload.uploadPath, upload.destinationPath);
       this.upload = null;
       this.sendJSON({ type: 'sftp_upload_complete', requestId, path: upload.destinationPath, size: upload.received });
     } catch (error) {
-      if (upload) await this.abortUpload(upload, true);
+      if (upload) {
+        try { await this.abortUpload(upload, true); }
+        catch (cleanupError) { error = new Error(`${String(error)}; cleanup failed: ${String(cleanupError)}`); }
+      }
       this.reportError('upload', error, requestId);
     }
   }
@@ -250,8 +289,12 @@ export class SFTPHandler {
   async cancelUpload(requestId: string): Promise<void> {
     const upload = this.upload;
     if (!upload || upload.requestId !== requestId) return;
-    await this.abortUpload(upload, true);
-    this.sendJSON({ type: 'sftp_upload_cancelled', requestId });
+    try {
+      await this.abortUpload(upload, true);
+      this.sendJSON({ type: 'sftp_upload_cancelled', requestId });
+    } catch (error) {
+      this.reportError('upload', error, requestId);
+    }
   }
 
   async remove(requestId: string, path: string, directory: boolean): Promise<void> {
@@ -325,11 +368,75 @@ export class SFTPHandler {
 
   private async abortUpload(upload: UploadState, removePartial: boolean): Promise<void> {
     if (this.upload === upload) this.upload = null;
+    const failures: unknown[] = [];
     if (!upload.handleClosed) {
-      await this.client.closeHandle(upload.handle).catch(() => undefined);
+      try { await this.client.closeHandle(upload.handle); } catch (error) { failures.push(error); }
       upload.handleClosed = true;
     }
-    if (removePartial) await this.client.removeFile(upload.uploadPath).catch(() => undefined);
+    if (removePartial) {
+      try { await this.client.removeFile(upload.uploadPath); } catch (error) { failures.push(error); }
+    }
+    if (upload.expectedSha256 && failures.length) throw new Error(failures.map(String).join('; '));
+  }
+
+  private async checkedTextAttrs(path: string): Promise<SFTPAttrs> {
+    let attrs: SFTPAttrs;
+    try { attrs = await this.client.lstat(path); }
+    catch (error) {
+      if (error instanceof SFTPStatusError && error.code === 2) throw new SFTPConflictError('Remote file was removed during the edit');
+      throw error;
+    }
+    if (getSFTPFileKind(attrs) !== 'file') throw new SFTPConflictError('Remote file is no longer a regular file');
+    if (attrs.permissions === undefined || attrs.uid === undefined || attrs.gid === undefined) {
+      throw new Error('SFTP server did not provide permissions and ownership');
+    }
+    const size = this.safeSize(attrs);
+    if (size === null || size > MAX_TEXT_FILE_SIZE) throw new Error('Remote file exceeds the text editor limit');
+    return attrs;
+  }
+
+  private async assertTextVersion(path: string, expectedSha256: string): Promise<SFTPAttrs> {
+    const attrs = await this.checkedTextAttrs(path);
+    const size = this.safeSize(attrs)!;
+    const handle = await this.client.openFile(path, SFTP_OPEN_FLAGS.READ);
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    try {
+      while (length <= MAX_TEXT_FILE_SIZE) {
+        const chunk = await this.client.readFile(handle, length, Math.min(TRANSFER_CHUNK_SIZE, MAX_TEXT_FILE_SIZE + 1 - length));
+        if (!chunk?.length) break;
+        chunks.push(chunk);
+        length += chunk.length;
+      }
+    } finally {
+      await this.client.closeHandle(handle);
+    }
+    if (length !== size) throw new SFTPConflictError('Remote file changed during the edit');
+    const data = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', data)), byte => byte.toString(16).padStart(2, '0')).join('');
+    if (digest !== expectedSha256) throw new SFTPConflictError('Remote file changed during the edit');
+    return attrs;
+  }
+
+  private async preserveUploadMetadata(upload: UploadState): Promise<void> {
+    const original = upload.originalAttrs!;
+    let temporary = await this.client.fstat(upload.handle);
+    const identityChanged = temporary.uid !== original.uid || temporary.gid !== original.gid;
+    const modeChanged = temporary.permissions === undefined ||
+      (temporary.permissions & 0o7777) !== (original.permissions! & 0o7777);
+    if (identityChanged || modeChanged) {
+      await this.client.fsetstat(upload.handle, {
+        ...(identityChanged ? { uid: original.uid, gid: original.gid } : {}),
+        ...(modeChanged ? { permissions: original.permissions! & 0o7777 } : {}),
+      });
+      temporary = await this.client.fstat(upload.handle);
+    }
+    if (temporary.uid !== original.uid || temporary.gid !== original.gid ||
+      temporary.permissions === undefined || (temporary.permissions & 0o7777) !== (original.permissions! & 0o7777)) {
+      throw new Error('SFTP server could not preserve file permissions and ownership');
+    }
   }
 
   private assertReady(): void {
@@ -391,6 +498,7 @@ export class SFTPHandler {
   private reportError(operation: string, error: unknown, requestId?: string): void {
     const message = error instanceof Error ? error.message : String(error);
     const code = error instanceof SFTPStatusError ? error.code : undefined;
-    this.sendJSON({ type: 'sftp_error', requestId, operation, code, message });
+    this.sendJSON({ type: 'sftp_error', requestId, operation, code,
+      reason: error instanceof SFTPConflictError ? 'conflict' : undefined, message });
   }
 }
