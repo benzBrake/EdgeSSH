@@ -153,14 +153,14 @@ test('会话栏在无会话和关闭最后一个会话后常驻显示', async ({
   await expectEmptyHome();
 });
 
-for (const entry of ['plus', 'ssh-menu', 'quick', 'bottom-quick']) {
+for (const entry of ['plus', 'ssh-menu', 'bottom-quick']) {
   test(`取消未连接会话后没有 tab 或残留终端页：${entry}`, async ({ page }) => {
     await dashboardFixture(page);
     if (entry === 'plus') await page.locator('#session-new').click();
     else if (entry === 'ssh-menu') {
       await page.locator('#session-new').press('ArrowDown');
       await page.locator('#session-create-menu [data-session-kind="ssh"]').click();
-    } else await page.locator(entry === 'quick' ? '#quick-connect' : '#bottom-quick').click();
+    } else await page.locator('#bottom-quick').click();
     const session = page.frameLocator('#session-frame-host iframe');
     await expect(session.locator('#connection-panel')).toBeVisible();
     if (entry === 'plus') await session.locator('#panel-close').press('Escape');

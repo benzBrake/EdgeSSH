@@ -69,7 +69,6 @@ export class Dashboard {
           <button class="rail-item" id="rail-files">${icon('folder')}<span>文件管理</span></button>
           <button class="rail-item" id="rail-snippets">${icon('snippets')}<span>代码片段</span></button>
           <button class="rail-item" id="rail-forward">${icon('forward')}<span>端口转发</span></button>
-          <button class="rail-item" id="quick-connect">${icon('terminal')}<span>临时连接</span></button>
           <button class="rail-item" id="rail-settings">${icon('settings')}<span>设置</span></button>
           <span class="rail-security" title="管理员身份认证">${icon('shield')}<span id="auth-provider-label">身份<br>保护</span></span>
         </nav>
@@ -190,7 +189,7 @@ export class Dashboard {
     this.get('#rail-snippets').addEventListener('click', () => this.showSnippets());
     this.get('#rail-forward').addEventListener('click', () => this.showForwarding());
     this.get('#rail-settings').addEventListener('click', () => this.actions.openSettings());
-    for (const id of ['#quick-connect', '#bottom-quick']) this.get(id).addEventListener('click', () => {
+    this.get('#bottom-quick').addEventListener('click', () => {
       if (this.busy) return;
       if (!this.canLeaveSettings()) return;
       this.actions.leaveWorkspace();
@@ -365,7 +364,7 @@ export class Dashboard {
     this.renderAccount();
     this.setHosts([]);
     this.get('#host-list').textContent = '请点击右上角「登录」验证管理员身份。';
-    this.root.querySelectorAll<HTMLButtonElement>('[data-add], #quick-connect, #bottom-quick, #rail-snippets').forEach((button) => { button.disabled = true; });
+    this.root.querySelectorAll<HTMLButtonElement>('[data-add], #bottom-quick, #rail-snippets').forEach((button) => { button.disabled = true; });
     this.show();
   }
 
