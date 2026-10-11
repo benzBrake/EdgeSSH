@@ -24,16 +24,16 @@ body[data-view='snippets'] { overflow-y: auto; background: var(--home-bg); }
 #dashboard .snippet-page button.snippet-primary, .snippet-page-dialog button.snippet-primary { color: var(--home-on-action); border-color: var(--home-action); background: var(--home-action); }
 #dashboard .snippet-page button.snippet-primary:hover:not(:disabled), .snippet-page-dialog button.snippet-primary:hover:not(:disabled) { border-color: var(--home-accent-hover); background: var(--home-accent-hover); }
 .snippet-page-dialog button:disabled { opacity: .5; cursor: not-allowed; }
-#dashboard .snippet-page :is(button, input):focus-visible, .snippet-page-dialog :is(button, input, textarea):focus-visible { outline: 2px solid var(--home-action); outline-offset: 3px; }
+#dashboard .snippet-page :is(button, input):focus-visible, .snippet-page-dialog :is(button, input, textarea):focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 2px var(--home-accent-soft); }
 #dashboard .snippet-page svg, .snippet-page-dialog button svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .snippet-page .snippet-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 #dashboard .snippet-page button[data-new], #dashboard .snippet-page .snippet-open-terminal { width: auto; gap: 8px; padding: 0 14px; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .snippet-page .snippet-search { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 160px; height: 44px; padding: 0 14px; border: 1px solid var(--home-control-border); border-radius: 10px; background: var(--home-surface); }
 .snippet-page .snippet-search > span { display: flex; flex: 0 0 auto; color: var(--home-accent-hover); }
 .snippet-page .snippet-search:hover { border-color: var(--home-action); }
-.snippet-page .snippet-search:focus-within { border-color: var(--home-action); box-shadow: 0 0 0 3px var(--home-accent-soft); }
+.snippet-page .snippet-search:focus-within { border-color: var(--home-action); box-shadow: 0 0 0 2px var(--home-accent-soft); }
 .snippet-page .snippet-search input { width: 100%; min-width: 0; height: 100%; padding: 0; border: 0; outline: none; box-shadow: none; background: transparent; color: var(--home-ink); font: inherit; font-size: 14px; }
-#dashboard .snippet-page .snippet-search input:focus-visible { outline: none; }
+#dashboard .snippet-page .snippet-search input:focus-visible { outline: none; box-shadow: none; }
 .snippet-page .snippet-search input::placeholder { color: var(--home-muted); }
 .snippet-page .snippet-status { margin: 14px 0 18px; color: var(--home-muted); font-size: 12px; line-height: 1.5; }
 .snippet-page .snippet-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 16px; }

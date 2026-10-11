@@ -460,8 +460,16 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  /* Transparent outline keeps focus visible in forced-colors mode. */
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: var(--accent);
 }
 
 button:disabled {
@@ -895,7 +903,8 @@ button:disabled {
 
 .connection-search svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 .connection-search input { min-width: 0; flex: 1; height: 34px; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 12px; }
-.connection-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.connection-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+.connection-search input:focus-visible { outline: none; box-shadow: none; }
 .temporary-history-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
 .temporary-history-heading h2 { margin: 0; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .temporary-list { max-height: 180px; margin-bottom: 18px; }
@@ -970,8 +979,9 @@ button:disabled {
 }
 
 .profile-main:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: 0 0 0 2px var(--accent-dim);
 }
 
 .profile-card:hover,
@@ -1142,7 +1152,7 @@ button:disabled {
 .field textarea:focus,
 .field select:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
+  box-shadow: 0 0 0 2px var(--accent-dim);
   background: color-mix(in srgb, var(--surface) 86%, var(--accent-dim));
 }
 
@@ -1198,7 +1208,8 @@ button:disabled {
 }
 
 .segmented-control input:focus-visible + span {
-  outline: 2px solid var(--accent);
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px var(--accent-dim), 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .input-action-wrap {
@@ -2356,7 +2367,7 @@ button:disabled {
 
 .file-tree-row:focus-visible {
   background: var(--surface-2);
-  box-shadow: inset 0 0 0 1px var(--accent-dim);
+  box-shadow: inset 0 0 0 2px var(--accent-dim);
 }
 
 .file-tree-row.is-selected {
@@ -2659,8 +2670,6 @@ button:disabled {
   font-size: 11px;
 }
 
-.file-filter:focus-visible { outline: 2px solid var(--accent); }
-
 .file-actions {
   display: flex;
   min-width: 0;
@@ -2700,8 +2709,9 @@ button:disabled {
 .file-manager:fullscreen #exit-fullscreen-files { display: grid; }
 
 .file-view-controls .file-action:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid transparent;
   outline-offset: -2px;
+  box-shadow: inset 0 0 0 2px var(--accent-dim);
 }
 
 .file-action:hover:not(:disabled) {
