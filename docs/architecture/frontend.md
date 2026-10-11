@@ -38,4 +38,6 @@
 
 主样式为 `src/style.css`，功能样式与组件并列；保留主题变量、中英文、键盘导航、375px 手机及更窄视口行为。`public/flags/` 是静态资源，`src/vendor/` 是 vendored 依赖，不做无关批量修改。
 
+首页与终端页的目标配色、表面层次和自动／浅色／暗色选择规则见[颜色模式设计](../design/COLOR_MODES.md)。该方案已确认，尚未实现；文档中单独列出当前源码差距与实施验收要求。
+
 从根运行 `npm run typecheck`、`npm run build:web`；行为改动选择 `tests/browser/` 中对应的 settings、files、dashboard、snippets、navigation、forwarding 或 ssh-failure 用例。测试模拟 API/WebSocket，不能替代真实服务器验证。
