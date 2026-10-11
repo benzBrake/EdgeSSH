@@ -19,7 +19,7 @@ function clientAddress(request: Request): string {
   return /^[0-9A-Fa-f:.]{2,64}$/.test(value) ? value.toLowerCase() : 'unknown';
 }
 
-async function sessionTicket(request: Request, env: Env, accountId: string): Promise<Response> {
+async function sessionTicket(request: Request, env: Env, accountId: string, authRevision?: number): Promise<Response> {
   if (!request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) return jsonError('Expected application/json', 415);
   const contentLength = Number(request.headers.get('Content-Length') ?? 0);
   if (!Number.isFinite(contentLength) || contentLength < 0 || contentLength > 8192) return jsonError('Request body is too large', 413);
@@ -36,7 +36,8 @@ async function sessionTicket(request: Request, env: Env, accountId: string): Pro
   const stub = env.SSH_SESSIONS.get(id);
   const response = await stub.fetch(new Request('https://session.internal/ticket', {
     method: 'POST',
-    headers: { 'x-client-ip': clientAddress(request), 'x-account-id': accountId },
+    headers: { 'x-client-ip': clientAddress(request), 'x-account-id': accountId,
+      ...(authRevision === undefined ? {} : { 'x-auth-revision': String(authRevision) }) },
   }));
   if (!response.ok) return jsonError('Unable to create a session ticket', 503);
   const ticket = await response.json<{ ticket: string; expiresAt: number }>();
@@ -158,7 +159,7 @@ export default {
       if ((isApiRequest || isForwardRequest) && !account) return jsonError('请先登录。', 401);
       // 转发返回目标网站自己的 CSP，不套主应用 CSP；此路径仍必须先通过管理员认证。
       if (isForwardRequest) return await trustedForwardRoute(request, env, account!.id);
-      if (url.pathname === '/api/auth/me' && request.method === 'GET') return json({ account, provider: authProvider(env) });
+      if (url.pathname === '/api/auth/me' && request.method === 'GET') return json({ account: { id: account!.id, username: account!.username }, provider: authProvider(env) });
       if (url.pathname.startsWith('/api/hosts')) return await hostsRoute(request, env, account!.id, url.pathname);
       if (url.pathname.startsWith('/api/settings')) return await settingsRoute(request, env, account!.id, url.pathname);
       if (url.pathname.startsWith('/api/snippets')) return await snippetsRoute(request, env, account!.id, url.pathname);
@@ -166,7 +167,7 @@ export default {
       if (url.pathname === '/api/forwarding') return await forwardingRoute(request, env, account!.id);
       if (url.pathname === '/api/session') {
         if (request.method !== 'POST') return corsResponse(jsonError('Method not allowed', 405));
-        return corsResponse(await sessionTicket(request, env, account!.id));
+        return corsResponse(await sessionTicket(request, env, account!.id, account!.authRevision));
       }
       if (url.pathname === '/api/ssh') {
         if (request.method !== 'GET') return corsResponse(jsonError('Method not allowed', 405));

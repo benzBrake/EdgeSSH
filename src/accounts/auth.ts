@@ -6,7 +6,7 @@ import { authProvider } from './auth-provider.ts';
 import { githubAccount } from './github-auth.ts';
 import { workspaceState, type WorkspaceState } from './workspace.ts';
 
-export interface WorkspaceAccount { id: string; username: string }
+export interface WorkspaceAccount { id: string; username: string; authRevision?: number }
 const resolvers = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 export async function currentAccount(request: Request, env: Env): Promise<WorkspaceAccount> {
@@ -17,7 +17,7 @@ export async function currentAccount(request: Request, env: Env): Promise<Worksp
   const identity = provider === 'github'
     ? await githubAccount(request, env, workspace.authRevision) : await accessAccount(request, env, workspace);
   // 登录身份只用于展示；所有获准身份始终进入 D1 中固定的同一个管理员工作区。
-  return { id: workspace.accountId, username: identity.username };
+  return { id: workspace.accountId, username: identity.username, authRevision: workspace.authRevision };
 }
 
 async function accessAccount(request: Request, env: Env, workspace: WorkspaceState): Promise<{ username: string }> {

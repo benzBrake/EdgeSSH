@@ -12,7 +12,7 @@
 
 | 范围 | 文件 |
 | --- | --- |
-| 认证与加密 | auth、oauth、encryption |
+| 认证与加密 | auth、oauth、encryption、session-revocation |
 | 云端数据与设置 | snippets、settings、forward-rules、location |
 | SSH 与终端行为 | ssh-handshake、ssh-session-failure、ssh-keygen、ws-reconnect、terminal-tools、system-info、file-kind |
 | 转发协议与授权 | forwarding-auth/http/protocol/routes/mounted/failure |
