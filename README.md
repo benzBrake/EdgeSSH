@@ -567,6 +567,17 @@ npm run dev
 
 URL 参数 `?demo` 是独立的前端演示模式：它使用内存演示数据，不连接本地 Worker API；开发免登录不会自动启用或改变 `?demo` 行为。
 
+本地使用隔离预览时，在根目录 `.dev.vars` 设置：
+
+```dotenv
+DEV_AUTH=true
+PREVIEW_ORIGIN=http://localhost:8788
+```
+
+分别在两个终端运行 `npm run dev` 和 `npm run dev:preview`，打开主站 `http://127.0.0.1:8787`，即可在端口转发页面使用隔离预览。
+
+主站用 `127.0.0.1`，预览用 `localhost`，不要两边用相同地址。`8788` 可换成其他空闲端口；修改配置后重启两个服务。若配置了 `APP_ORIGIN`，本地应设为主站地址 `http://127.0.0.1:8787`。
+
 前端开发:
 
 ```bash

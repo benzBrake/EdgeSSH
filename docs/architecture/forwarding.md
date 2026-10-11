@@ -15,6 +15,8 @@
 
 两种模式不可混用 grant。DO 的账户/Origin/模式核对与预览能力校验各有边界；主 Worker 覆盖内部路由头，preview Worker 剥离浏览器伪造的账户/预览头。preview 域名要求与主站不共享父域 Cookie；同账户双 workers.dev 不提供所需跨 site 隔离。
 
+本地 `DEV_AUTH=true` 时，仅回环预览地址（`localhost`、其子域、`127.0.0.1`、`::1`）允许 HTTP 与非默认端口，跨站检查仍保留。HTTP 使用独立的 `edgessh-preview-dev` HttpOnly、SameSite=Strict Cookie；生产和 HTTPS 预览继续使用带 Secure 的 `__Host-edgessh-preview`。两种能力 Cookie 都禁止发送到 SSH 上游或被上游 Set-Cookie 覆盖。本地预览启动配置只从根 `.dev.vars` 加载 `PREVIEW_ORIGIN` 与 `DEV_AUTH`，不注入主站秘密。
+
 授权有效期为 1 小时，launch 票据 60 秒；前端离开后会话保留期限为 8 分钟，最终有效期还受保留限制。DO 重启、SSH 断线、显式停止使能力失效。退出登录或工作区认证版本变化后，DO 拒绝旧预览 Cookie 和 launch 能力；活动流按 SSH 会话的十秒周期检查关闭，不保留八分钟。创建 grant 前实际打开 direct-tcpip 探测端口，失败不得返回虚假的可用链接。
 
 ## 协议与改写限制

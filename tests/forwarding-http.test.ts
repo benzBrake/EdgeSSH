@@ -5,7 +5,7 @@ import { previewHeaders, rewriteLocalURL, stripHopHeaders, upstreamHeaders } fro
 test('forwarding strips hop-by-hop and internal request headers', () => {
   const request = new Request('https://preview.example/app', { headers: {
     Connection: 'keep-alive, X-Custom-Hop', 'X-Custom-Hop': 'drop',
-    Cookie: 'a=1; __Host-edgessh-preview=secret; b=2', 'X-Preview-Path': '/app',
+    Cookie: 'a=1; __Host-edgessh-preview=secret; edgessh-preview-dev=dev-secret; b=2', 'X-Preview-Path': '/app',
     Origin: 'https://preview.example', Referer: 'https://preview.example/app',
   }});
   const headers = upstreamHeaders(request, 2222, 'https://preview.example');
@@ -21,6 +21,7 @@ test('preview response preserves safe cookies and rewrites location', () => {
   const source = new Headers();
   source.append('Set-Cookie', 'sid=abc; Domain=internal.test; Secure; Path=/');
   source.append('Set-Cookie', '__Host-edgessh-preview=bad; Path=/');
+  source.append('Set-Cookie', 'edgessh-preview-dev=bad; Path=/');
   source.set('Location', 'http://127.0.0.1:2222/login');
   source.set('Content-Length', '10');
   const result = previewHeaders(source, 2222, 'https://preview.example');
@@ -29,6 +30,13 @@ test('preview response preserves safe cookies and rewrites location', () => {
   assert.deepEqual(result.getSetCookie(), ['sid=abc; Path=/; Secure']);
 }
 );
+
+test('HTTP preview cookies remain usable without exposing the development capability', () => {
+  const source = new Headers();
+  source.append('Set-Cookie', 'sid=abc; Domain=internal.test; Secure; Path=/');
+  source.append('Set-Cookie', 'edgessh-preview-dev=bad; Path=/');
+  assert.deepEqual(previewHeaders(source, 2222, 'http://127.0.0.1:8318').getSetCookie(), ['sid=abc; Path=/']);
+});
 
 test('URL rewriting leaves foreign origins unchanged', () => {
   assert.equal(rewriteLocalURL('http://127.0.0.1:2222/a?x=1', 2222, 'https://p.test'), 'https://p.test/a?x=1');

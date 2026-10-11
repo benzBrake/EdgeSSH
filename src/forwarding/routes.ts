@@ -17,8 +17,8 @@ export async function forwardingRoute(request: Request, env: Env, accountId: str
     }
     let previewAvailable = false;
     try {
-      previewOrigin(env.PREVIEW_ORIGIN, new URL(request.url).origin);
-      if (env.APP_ORIGIN) previewOrigin(env.PREVIEW_ORIGIN, env.APP_ORIGIN);
+      previewOrigin(env.PREVIEW_ORIGIN, new URL(request.url).origin, env.DEV_AUTH === 'true');
+      if (env.APP_ORIGIN) previewOrigin(env.PREVIEW_ORIGIN, env.APP_ORIGIN, env.DEV_AUTH === 'true');
       previewAvailable = true;
     } catch { /* 未启用隔离预览不影响默认标准转发 */ }
     return Response.json({ previewAvailable }, { headers: { 'Cache-Control': 'no-store' } });
@@ -46,8 +46,8 @@ export async function forwardingRoute(request: Request, env: Env, accountId: str
     if (mode === 'trusted' && input.trusted !== true) return jsonError('标准转发仅适用于可信网站，请先确认风险。', 400);
     if (mode === 'isolated') {
       try {
-        origin = previewOrigin(env.PREVIEW_ORIGIN, url.origin);
-        if (env.APP_ORIGIN) previewOrigin(origin, env.APP_ORIGIN);
+        origin = previewOrigin(env.PREVIEW_ORIGIN, url.origin, env.DEV_AUTH === 'true');
+        if (env.APP_ORIGIN) previewOrigin(origin, env.APP_ORIGIN, env.DEV_AUTH === 'true');
       } catch { return jsonError('隔离预览尚未启用，请先运行“部署预览 Worker”工作流。', 503); }
     }
     body = JSON.stringify({ port: input.port, mode });

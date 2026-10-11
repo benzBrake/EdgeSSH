@@ -1,5 +1,5 @@
 import type { ForwardChannel } from './channel.ts';
-import { PREVIEW_COOKIE, PREVIEW_PREFIX } from './security.ts';
+import { DEV_PREVIEW_COOKIE, PREVIEW_COOKIE, PREVIEW_PREFIX } from './security.ts';
 import { mountURL, mountCookie, mountCSS, mountSrcset, upstreamCookies, RUNTIME_PATH } from './mount.ts';
 import { readBoundedText } from './body.ts';
 
@@ -15,7 +15,8 @@ export function stripHopHeaders(headers: Headers): void {
 }
 
 function isInternalCookie(name: string): boolean {
-  return name.toLowerCase() === PREVIEW_COOKIE.toLowerCase() || /^cf_authorization$/i.test(name)
+  return name.toLowerCase() === PREVIEW_COOKIE.toLowerCase() || name.toLowerCase() === DEV_PREVIEW_COOKIE
+    || /^cf_authorization$/i.test(name)
     || /^__host-edgessh-session$/i.test(name);
 }
 
@@ -70,7 +71,7 @@ export function previewHeaders(source: Headers, port: number, origin: string, ba
     const name = parts[0].split('=')[0].trim();
     if (isInternalCookie(name)) continue;
     const attrs = parts.slice(1).filter((part) => !/^\s*(domain|secure)\s*(=|$)/i.test(part));
-    headers.append('Set-Cookie', [parts[0], ...attrs, ' Secure'].join(';'));
+    headers.append('Set-Cookie', [parts[0], ...attrs, ...(new URL(origin).protocol === 'https:' ? [' Secure'] : [])].join(';'));
   }
   const location = headers.get('Location');
   if (location) {

@@ -26,6 +26,7 @@ Node.js 要求 `>=22.12.0`，使用 `fnm` 管理；依赖由根目录 npm 锁文
 | --- | --- |
 | `npm ci` | 按锁文件安装依赖 |
 | `npm run dev` | Wrangler 本地 Worker（配置会构建前端） |
+| `npm run dev:preview` | 本地隔离预览 Worker，监听协议与端口由 `.dev.vars` 推导 |
 | `npm run dev:web` | Vite 前端，API/WebSocket 代理到本地 Worker |
 | `npm run build:web` | 构建前端到根 `dist/` |
 | `npm run typecheck` | 检查 Worker、前端和部署脚本 |
