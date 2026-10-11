@@ -16,7 +16,7 @@
 | `src/cloud-api.ts`、`src/dashboard.ts` | 同源 API、云端主机管理、Dashboard |
 | `src/terminal-tools.ts`、`src/terminal-session.ts`、`src/ws-reconnect.ts` | 终端工具、连接重置、可控重连 |
 | `src/file-manager.ts`、`src/file-tree.ts`、`src/file-list-view.ts`、`src/file-list.tsx` | SFTP 操作、目录树与列表契约 |
-| `src/sftp-workbench.ts`、`src/process-manager.ts` | SFTP 专用标签、终端分隔条与进程监控 |
+| `src/sftp-workbench.ts`、`src/workspace-split.ts`、`src/process-manager.ts` | SFTP 专用标签、SSH/SFTP 终端分隔条与进程监控 |
 | `src/settings-store.ts`、`src/settings-page.ts` | 工作区设置快照、手动保存、草稿与冲突 UI |
 | `src/snippet-store.ts`、`src/snippets.ts`、`src/snippet-*.ts` | 命令片段管理、浮窗、编辑及插入行为 |
 | `src/forward-page.ts` | 云端转发规则、标准/隔离模式和短期恢复句柄 |
@@ -35,6 +35,8 @@
 - `?demo` 使用前端演示数据；`DEV_AUTH` 属于 Worker 本地认证配置。演示设置仅存本页内存。
 
 ## 样式与验证
+
+SSH 标签展开文件、进程或日志面板后，可拖动分隔条或使用方向键、Home/End 调整终端高度；偏好比例仅保留在当前会话，切换面板、收起及恢复视口时保留。SSH/SFTP 共用终端适配逻辑，发送的尺寸限制为 10–1000 列、5–1000 行；隐藏标签不触发尺寸适配。
 
 颜色变量集中在 `src/colors.css`，首页沿用橙色、工作台沿用薄荷绿，并区分表面、控件边框、按钮文字、选中和语义状态色。`src/style.css` 与组件样式消费这些变量；终端输出和命令输入使用独立的固定深色变量，Canvas 在主题变化后重绘。主样式为 `src/style.css`，功能样式与组件并列；保留主题变量、中英文、键盘导航、375px 手机及更窄视口行为。`public/flags/` 是静态资源，`src/vendor/` 是 vendored 依赖，不做无关批量修改。
 

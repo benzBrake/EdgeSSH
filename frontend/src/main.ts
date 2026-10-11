@@ -7,6 +7,7 @@ import { listHosts, hostCredentials, saveHost, removeHost, updateHostSystem, typ
 import { Dashboard } from './dashboard';
 import { systemIcon } from './os-icons';
 import { SftpWorkbench } from './sftp-workbench';
+import { WorkspaceSplit } from './workspace-split';
 import { bindSessionCreateMenu, type SessionKind } from './session-create-menu';
 import { Snippets } from './snippets';
 import { resolveSnippetTarget } from './snippet-action';
@@ -416,6 +417,7 @@ function applyLanguage(language: Language, persist = false): void {
   }
   if (fileManager) fileManager.setLanguage();
   sftpWorkbench?.refreshLanguage();
+  workspaceSplit?.refreshLanguage();
   if (fileTree) fileTree.setLanguage();
   if (processManager) processManager.setLanguage();
   dashboard?.setLanguage(language);
@@ -434,6 +436,7 @@ let connectionPanelTab: 'saved' | 'temporary' = 'saved';
 let dashboard: Dashboard | undefined;
 let snippets: Snippets | undefined;
 let sftpWorkbench: SftpWorkbench | undefined;
+let workspaceSplit: WorkspaceSplit | undefined;
 let hostKeys: Record<string, string> = {};
 let socket: WebSocket | null = null;
 let connectionState: ConnectionState = 'idle';
@@ -1852,6 +1855,7 @@ function setWorkspaceTab(tab: WorkspaceTab | null, focus = false, rovingTab = ta
   ui.fileManagerPanel.hidden = !filesActive;
   ui.processManagerPanel.hidden = !processesActive;
   ui.eventLog.hidden = !logActive;
+  workspaceSplit?.setOpen(tab !== null);
   ui.fileManagerTab.setAttribute('aria-selected', String(filesActive));
   ui.processManagerTab.setAttribute('aria-selected', String(processesActive));
   ui.eventToggle.setAttribute('aria-selected', String(logActive));
@@ -2942,6 +2946,8 @@ async function initialize(): Promise<void> {
       reportError: (message) => event(message, 'sftp', true),
       localize: bilingual,
     });
+  } else {
+    workspaceSplit = new WorkspaceSplit(ui.terminalCard, () => fitTerminal(true), bilingual);
   }
   dashboard = new Dashboard({
     settings: new SettingsPage(settingsStore),

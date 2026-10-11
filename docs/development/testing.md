@@ -17,7 +17,7 @@
 | SSH 与终端行为 | ssh-handshake、ssh-session-failure、ssh-keygen、ws-reconnect、terminal-tools、system-info、file-kind、sftp-text-save |
 | 转发协议与授权 | forwarding-auth/http/protocol/routes/mounted/failure |
 | 发布编排 | deployment、deployment-bootstrap、deployment-auth |
-| 浏览器工作台 | browser/dashboard、navigation、saved-connection、settings、snippets、terminal-tools、ssh-failure |
+| 浏览器工作台 | browser/dashboard、navigation、saved-connection、settings、snippets、terminal-tools、workspace-split、ssh-failure |
 | 浏览器 SFTP 与转发 | browser/files、file-editor、forwarding、forwarding-runtime、共享 file-fixture |
 
 上表省略后缀：根测试为 `.test.ts`，浏览器测试为 `.spec.ts`；`browser/file-fixture.ts` 是共享辅助文件。
