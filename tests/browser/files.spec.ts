@@ -1,6 +1,49 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { connectFiles, fileFixture, fileSession } from './file-fixture';
+import { DEFAULT_SETTINGS } from '../../src/accounts/settings-data';
+import { normalizeTerminalSize } from '../../src/types';
+
+for (const fontSize of [13, 24]) {
+  test(`SFTP 终端缩到最小后保持合法尺寸与连接（字号 ${fontSize}）`, async ({ page }, testInfo) => {
+    const fixture = await fileFixture(page, { settings: { ...DEFAULT_SETTINGS, fontSize } });
+    const session = await connectFiles(page);
+    await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+    await session.locator('#sftp-terminal-collapse').click();
+    const divider = session.getByRole('separator', { name: '调整终端高度' });
+    const resizes = () => fixture.calls.filter(call => call.type === 'resize');
+    await divider.press('End');
+    await expect.poll(() => resizes().at(-1)?.rows).toBeGreaterThan(5);
+    const baseline = resizes().length;
+    if (testInfo.project.name === 'desktop') {
+      const box = (await divider.boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2, box.y + 600, { steps: 10 });
+      await page.mouse.up();
+    } else {
+      await divider.press('Home');
+    }
+    await expect.poll(async () => Number(await divider.getAttribute('aria-valuenow')))
+      .toBe(Number(await divider.getAttribute('aria-valuemin')));
+    await expect.poll(() => resizes().length).toBeGreaterThan(baseline);
+    await expect.poll(() => resizes().at(-1)?.rows).toBe(5);
+    await session.locator('#command-editor-toggle').click();
+    await expect(session.locator('#command-editor')).toBeVisible();
+    await divider.press('End');
+    await expect(divider).toHaveAttribute('aria-valuenow', (await divider.getAttribute('aria-valuemax'))!);
+    await divider.press('Home');
+    await expect.poll(() => resizes().at(-1)?.rows).toBe(5);
+    await session.locator('#sftp-terminal-collapse').click();
+    await session.locator('#sftp-terminal-collapse').click();
+    await expect(session.locator('#sftp-connection-state')).toHaveText('SFTP 已连接');
+    for (const frame of fixture.calls.filter(call => call.type === 'resize' || call.type === 'connect')) {
+      expect(normalizeTerminalSize(frame.cols, frame.rows), `${frame.type}: ${frame.cols}×${frame.rows}`).toEqual({ cols: frame.cols, rows: frame.rows });
+    }
+    expect(fixture.sshSockets).toHaveLength(1);
+    expect(fixture.sftpSockets).toHaveLength(1);
+  });
+}
 
 test('文件管理新建 SFTP 标签，空主机与手机布局', async ({ page }, testInfo) => {
   await fileFixture(page, { noHosts: true });

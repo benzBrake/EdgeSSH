@@ -1697,9 +1697,16 @@ function fitTerminal(send = true): void {
       // SSH window-change when the user opens the host dashboard.
       const stage = ui.terminalStage.getBoundingClientRect();
       if (stage.width <= 0 || stage.height <= 0) return;
+      const dimensions = fitAddon.proposeDimensions();
+      if (!dimensions || !Number.isFinite(dimensions.cols) || !Number.isFinite(dimensions.rows)) return;
       const previousCols = terminal.cols;
       const previousRows = terminal.rows;
-      fitAddon.fit();
+      // FitAddon permits 2 columns / 1 row, but the SSH contract requires
+      // 10 columns / 5 rows. Keep the local grid and remote PTY in sync.
+      terminal.resize(
+        Math.max(10, Math.min(1000, dimensions.cols)),
+        Math.max(5, Math.min(1000, dimensions.rows)),
+      );
       if (send && socket?.readyState === WebSocket.OPEN
         && (terminal.cols !== previousCols || terminal.rows !== previousRows)) {
         socket.send(JSON.stringify({ type: 'resize', cols: terminal.cols, rows: terminal.rows }));
