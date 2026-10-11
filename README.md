@@ -541,6 +541,8 @@ Preview Worker 和 EdgeSSH 主界面运行在不同的 Origin 上,能减少被�
 
 # 本地开发
 
+开发文档：[架构总览与模块导航](docs/architecture/overview.md) · [开发约定](docs/development/working-agreements.md) · [测试与验证](docs/development/testing.md)。修改源码前，先阅读开发约定和相关模块目录中的 `README.md`，再按链接查看详细设计与测试说明。
+
 Requirements:
 
 ```text
@@ -564,6 +566,17 @@ npm run dev
 `.dev.vars` 中的 `DEV_AUTH=true` 仅用于本地 Worker 开发，会以 `local-development` 身份直接访问真实本地 API，无需 GitHub 或 Cloudflare Access 登录。新增主机前还必须配置 `ENCRYPTION_KEY`：使用任意安全随机的 32 字节 Base64 值（例如通过密码管理器生成），不要将真实密钥提交到 Git。不要将 `DEV_AUTH` 用于公开或生产环境。
 
 URL 参数 `?demo` 是独立的前端演示模式：它使用内存演示数据，不连接本地 Worker API；开发免登录不会自动启用或改变 `?demo` 行为。
+
+本地使用隔离预览时，在根目录 `.dev.vars` 设置：
+
+```dotenv
+DEV_AUTH=true
+PREVIEW_ORIGIN=http://localhost:8788
+```
+
+分别在两个终端运行 `npm run dev` 和 `npm run dev:preview`，打开主站 `http://127.0.0.1:8787`，即可在端口转发页面使用隔离预览。
+
+主站用 `127.0.0.1`，预览用 `localhost`，不要两边用相同地址。`8788` 可换成其他空闲端口；修改配置后重启两个服务。若配置了 `APP_ORIGIN`，本地应设为主站地址 `http://127.0.0.1:8787`。
 
 前端开发:
 

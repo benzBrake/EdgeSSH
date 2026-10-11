@@ -1,16 +1,19 @@
-import { parseCapability, PREVIEW_COOKIE, PREVIEW_PREFIX, previewError, readPreviewCookie } from './forwarding/security';
+import { DEV_PREVIEW_COOKIE, isDevelopmentPreview, parseCapability, PREVIEW_COOKIE, PREVIEW_PREFIX, previewError, readPreviewCookie } from './forwarding/security';
 import { readBoundedText } from './forwarding/body';
 
 interface PreviewEnv {
   SSH_SESSIONS: DurableObjectNamespace;
   PREVIEW_ORIGIN: string;
+  DEV_AUTH?: string;
 }
 
 export default {
   async fetch(request: Request, env: PreviewEnv): Promise<Response> {
     try {
       const url = new URL(request.url);
-      if (url.protocol !== 'https:' || url.origin !== env.PREVIEW_ORIGIN) return previewError('Preview origin is not allowed', 403);
+      const devHttp = url.protocol === 'http:' && isDevelopmentPreview(url, env.DEV_AUTH === 'true');
+      if ((!devHttp && url.protocol !== 'https:') || url.origin !== env.PREVIEW_ORIGIN) return previewError('Preview origin is not allowed', 403);
+      const cookieName = devHttp ? DEV_PREVIEW_COOKIE : PREVIEW_COOKIE;
       if (request.headers.has('Service-Worker')) return previewError('Service workers are disabled in previews', 403);
       if (url.pathname === `${PREVIEW_PREFIX}start`) {
         if (request.method !== 'GET') return previewError('Method not allowed', 405);
@@ -43,11 +46,11 @@ fetch('${PREVIEW_PREFIX}launch',{method:'POST',headers:{'Content-Type':'applicat
         const { token, maxAge } = await response.json<{ token: string; maxAge: number }>();
         return Response.json({ ok: true }, { headers: {
           'Cache-Control': 'no-store',
-          'Set-Cookie': `${PREVIEW_COOKIE}=${cap.session}.${token}; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}`,
+          'Set-Cookie': `${cookieName}=${cap.session}.${token};${devHttp ? '' : ' Secure;'} HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}`,
         } });
       }
       if (url.pathname.startsWith(PREVIEW_PREFIX)) return previewError('Not found', 404);
-      const cap = parseCapability(readPreviewCookie(request.headers));
+      const cap = parseCapability(readPreviewCookie(request.headers, cookieName));
       if (!cap) return previewError('请从 EdgeSSH 端口转发页面打开预览。', 401);
       // 不将浏览器提供的内部头当作授权；只使用 HttpOnly Cookie 中的有限能力。
       const headers = new Headers(request.headers);

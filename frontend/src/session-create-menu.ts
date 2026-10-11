@@ -1,6 +1,6 @@
 export type SessionKind = 'ssh' | 'sftp';
 
-export function bindSessionCreateMenu(button: HTMLButtonElement, menu: HTMLElement, create: (kind: SessionKind) => void): void {
+export function bindSessionCreateMenu(button: HTMLButtonElement, menu: HTMLElement, create: (kind: SessionKind) => void, position: () => void): void {
   let timer: number | undefined;
   let longPressed = false;
   let start: { x: number; y: number } | undefined;
@@ -13,6 +13,7 @@ export function bindSessionCreateMenu(button: HTMLButtonElement, menu: HTMLEleme
   };
   const open = () => {
     menu.hidden = false;
+    position();
     button.setAttribute('aria-expanded', 'true');
     items[0]?.focus();
   };

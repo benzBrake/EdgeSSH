@@ -6,6 +6,8 @@ import { SSHSession } from './session';
 import { ForwardingState } from '../forwarding/state';
 import { forwardingErrorMessage } from '../forwarding/errors.ts';
 import { FORWARD_RETENTION_MS, previewError } from '../forwarding/security';
+import { workspaceState, type WorkspaceState } from '../accounts/workspace';
+import { APIError, apiFailure } from '../accounts/http';
 
 interface MainAttachment { role: 'main'; phase: 'waiting' | 'connecting' | 'connected' }
 interface SFTPAttachment { role: 'sftp'; phase: 'connected' }
@@ -26,6 +28,9 @@ interface SFTPAttachToken {
 }
 type AuxiliaryAttachToken = SFTPAttachToken;
 const TICKET_STORAGE_KEY = 'session-ticket';
+const AUTH_STORAGE_KEY = 'session-authorization';
+const AUTH_CHECK_INTERVAL_MS = 10_000;
+type SessionAuthorization = Pick<WorkspaceState, 'accountId' | 'authProvider' | 'authRevision'>;
 const SFTP_ATTACH_TOKEN_TTL_MS = 10 * 60 * 1000;
 const SFTP_ATTACH_TOKEN_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 interface RetainedForwarding { expiresAt: number; timeout: ReturnType<typeof setTimeout> }
@@ -48,6 +53,9 @@ export class SSHSessionDO implements DurableObject {
   private readonly processOwners = new Map<WebSocket, WebSocket>();
   private readonly processWebSocketsByMain = new Map<WebSocket, Set<WebSocket>>();
   private readonly retainedForwarding = new Map<WebSocket, RetainedForwarding>();
+  private authorizationInvalid = false;
+  private authorizationTimer?: ReturnType<typeof setTimeout>;
+  private messageAuthorization: Promise<void> = Promise.resolve();
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -66,25 +74,40 @@ export class SSHSessionDO implements DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    // 此入口只由独立预览 Worker 的 DO binding 调用，不暴露在主站 HTTP 路由中。
-    if (url.pathname === '/preview-launch' || url.pathname === '/preview-http') return this.forwarding.preview(request);
+    const preview = url.pathname === '/preview-launch' || url.pathname === '/preview-http';
     const accountId = request.headers.get('x-account-id');
-    if (!accountId) return Response.json({ error: 'Authentication required' }, { status: 401 });
+    if (!preview && !accountId) return Response.json({ error: 'Authentication required' }, { status: 401 });
     if (url.pathname === '/ticket' && request.method === 'POST') {
+      let authorization: SessionAuthorization | undefined;
+      if (this.env.DEV_AUTH !== 'true') {
+        try {
+          const workspace = await workspaceState(this.env);
+          if (workspace.accountId !== accountId || !Number.isSafeInteger(workspace.authRevision)
+            || workspace.authRevision < 0 || request.headers.get('x-auth-revision') !== String(workspace.authRevision)) {
+            throw new APIError('登录状态已变化，请重新登录。', 401);
+          }
+          authorization = { accountId: workspace.accountId, authProvider: workspace.authProvider, authRevision: workspace.authRevision };
+        } catch (error) { return apiFailure(error); }
+      }
       const ip = request.headers.get('x-client-ip') ?? 'unknown';
       if (!/^[0-9a-f:.]{2,64}$|^local$|^unknown$/i.test(ip)) return Response.json({ error: 'Invalid client address' }, { status: 400 });
       const secret = crypto.getRandomValues(new Uint8Array(32));
       const created = await createTicket(secret, ip);
       const stored = await this.state.storage.transaction(async (tx) => {
-        if (await tx.get(TICKET_STORAGE_KEY)) return false;
+        if (await tx.get('account-id')) return false;
         await tx.put(TICKET_STORAGE_KEY, { secret: Array.from(secret), expiresAt: created.expiresAt, ip } satisfies StoredTicket);
         await tx.put('account-id', accountId);
+        if (authorization) await tx.put(AUTH_STORAGE_KEY, authorization);
         await tx.setAlarm(created.expiresAt);
         return true;
       });
       secret.fill(0);
       return stored ? Response.json(created) : Response.json({ error: 'Ticket already created' }, { status: 409 });
     }
+    try { await this.assertAuthorized(); }
+    catch (error) { return apiFailure(error); }
+    // 预览能力同样受主站认证版本约束，不能在退出登录后继续使用。
+    if (preview) return this.forwarding.preview(request);
     // 主通道和辅助通道均绑定签发票据的账户，持有别人的 URL 也不能附着会话。
     if (await this.state.storage.get('account-id') !== accountId) {
       return Response.json({ error: 'Session owner mismatch' }, { status: 403 });
@@ -132,6 +155,8 @@ export class SSHSessionDO implements DurableObject {
     if (!ticket || !await this.consumeTicket(ticket, ip)) {
       return Response.json({ error: 'Invalid session ticket' }, { status: 401 });
     }
+    try { await this.assertAuthorized(); }
+    catch (error) { return apiFailure(error); }
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
@@ -141,10 +166,17 @@ export class SSHSessionDO implements DurableObject {
     this.registerProcessAttachToken(processAttachToken, processAttachUrl, server);
     const deadline = setTimeout(() => this.reject(server, 'Connect message timeout'), 10_000);
     this.deadlines.set(server, deadline);
+    this.scheduleAuthorizationCheck();
     return new Response(null, { status: 101, webSocket: client });
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    // Preserve input order even when concurrent D1 reads would finish out of
+    // order. Serialize only authorization; pending connect/cancel still interleave.
+    const authorization = this.messageAuthorization.then(() => this.assertAuthorized());
+    this.messageAuthorization = authorization.catch(() => undefined);
+    try { await authorization; }
+    catch { return; }
     const processSession = this.processSessions.get(ws);
     if (processSession || this.isProcessWebSocket(ws)) {
       try {
@@ -200,6 +232,7 @@ export class SSHSessionDO implements DurableObject {
       this.clearDeadline(ws);
       if (config.port === 25) throw new Error('Cloudflare Workers cannot connect to outbound TCP port 25');
       const verifiedAddresses = await assertPublicTarget(config.host);
+      await this.assertAuthorized();
       this.assertConnectionActive(ws, pending);
       ws.send(JSON.stringify({
         type: 'status',
@@ -210,6 +243,7 @@ export class SSHSessionDO implements DurableObject {
       // Connect to the exact address that passed SSRF validation. Keeping the
       // original hostname only for host-key pinning prevents DNS rebinding.
       const socket = await this.openVerifiedAddress(verifiedAddresses, config.port, pending);
+      await this.assertAuthorized();
       this.assertConnectionActive(ws, pending, socket);
 
       const ssh = new SSHSession(ws, socket, config);
@@ -249,7 +283,60 @@ export class SSHSessionDO implements DurableObject {
 
   async alarm(): Promise<void> {
     await this.state.storage.delete(TICKET_STORAGE_KEY);
-    await this.state.storage.delete('account-id');
+    if (!this.sessions.size && !this.pendingConnections.size && !this.deadlines.size) {
+      await this.state.storage.delete('account-id');
+      await this.state.storage.delete(AUTH_STORAGE_KEY);
+    } else {
+      await this.state.storage.setAlarm(Date.now() + 7 * 86400_000);
+    }
+  }
+
+  private async assertAuthorized(): Promise<void> {
+    if (this.authorizationInvalid) throw new APIError('会话授权已失效，请重新登录。', 401);
+    if (this.env.DEV_AUTH === 'true') return;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const [authorization, workspace] = await Promise.race([
+        Promise.all([this.state.storage.get<SessionAuthorization>(AUTH_STORAGE_KEY), workspaceState(this.env)]),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new APIError('无法验证会话授权，请重新连接。', 503)), 5000);
+        }),
+      ]);
+      if (this.authorizationInvalid || !authorization
+        || !Number.isSafeInteger(authorization.authRevision) || authorization.authRevision < 0
+        || authorization.accountId !== workspace.accountId || authorization.authProvider !== workspace.authProvider
+        || authorization.authRevision !== workspace.authRevision) {
+        throw new APIError('会话授权已失效，请重新登录。', 401);
+      }
+    } catch (error) {
+      this.invalidateAuthorization();
+      throw error;
+    } finally { clearTimeout(timeout); }
+  }
+
+  private scheduleAuthorizationCheck(): void {
+    if (this.env.DEV_AUTH === 'true' || this.authorizationInvalid || this.authorizationTimer) return;
+    this.authorizationTimer = setTimeout(async () => {
+      this.authorizationTimer = undefined;
+      try { await this.assertAuthorized(); }
+      catch { return; } // assertAuthorized 已关闭会话；不保留无法验证的授权。
+      if (this.sessions.size || this.pendingConnections.size || this.deadlines.size) this.scheduleAuthorizationCheck();
+    }, AUTH_CHECK_INTERVAL_MS);
+  }
+
+  private invalidateAuthorization(): void {
+    this.authorizationInvalid = true;
+    clearTimeout(this.authorizationTimer);
+    this.authorizationTimer = undefined;
+    // 先关闭 WebSocket，使用不可重试的关闭码；清理必须跳过转发的八分钟保留期。
+    for (const ws of this.state.getWebSockets()) {
+      try {
+        ws.send(JSON.stringify({ type: 'error', event: 'authorization_expired', retryable: false, message: '会话授权已失效，请重新登录。' }));
+      } catch { /* already closed */ }
+      try { ws.close(4001, 'Session authorization expired'); } catch { /* already closed */ }
+    }
+    this.forwarding.clear();
+    for (const ws of new Set([...this.sessions.keys(), ...this.pendingConnections.keys(), ...this.deadlines.keys()])) this.cleanup(ws, true);
   }
 
   private connectTimeout(): number {
@@ -265,7 +352,7 @@ export class SSHSessionDO implements DurableObject {
       // replay race without retaining authorization material after an attempt.
       await tx.delete(TICKET_STORAGE_KEY);
       await tx.deleteAlarm();
-      // 清理最终闲置对象的授权元数据；活跃连接不依赖此定时器继续传输。
+      // 最终清理授权元数据；独立的认证检查定时器负责及时撤销活动连接。
       await tx.setAlarm(Date.now() + 7 * 86400_000);
       // 不校验 stored.ip !== ip：反代/CDN（如腾讯云 EdgeOne）多节点回源会让
       // CF-Connecting-IP 在签发与使用两次请求间不一致，导致 ticket 误判失效
@@ -499,6 +586,10 @@ export class SSHSessionDO implements DurableObject {
     }
     this.sessions.get(ws)?.close(true);
     this.sessions.delete(ws);
+    if (!this.sessions.size && !this.pendingConnections.size && !this.deadlines.size) {
+      clearTimeout(this.authorizationTimer);
+      this.authorizationTimer = undefined;
+    }
   }
 
   private forwardingRetentionDeadline(session = this.forwarding.currentSession()): number | undefined {

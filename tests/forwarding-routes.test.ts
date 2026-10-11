@@ -5,11 +5,12 @@ import { ForwardingState } from '../src/forwarding/state.ts';
 
 const sessionId = 'a'.repeat(64);
 
-function makeEnv(previewOrigin?: string, appOrigin?: string) {
+function makeEnv(previewOrigin?: string, appOrigin?: string, devAuth?: string) {
   const calls: Array<{ request: Request; id: string }> = [];
   const env = {
     PREVIEW_ORIGIN: previewOrigin,
     APP_ORIGIN: appOrigin,
+    DEV_AUTH: devAuth,
     SSH_SESSIONS: {
       idFromString(id: string) { return id; },
       get(id: string) {
@@ -23,6 +24,22 @@ function makeEnv(previewOrigin?: string, appOrigin?: string) {
 test('GET reports preview availability only when configured', async () => {
   assert.deepEqual(await (await forwardingRoute(new Request('https://main.test/api/forward'), makeEnv().env, 'acct')).json(), { previewAvailable: false });
   assert.deepEqual(await (await forwardingRoute(new Request('https://main.test/api/forward'), makeEnv('https://preview.test').env, 'acct')).json(), { previewAvailable: true });
+});
+
+test('development forwarding permits local HTTP only with DEV_AUTH and a different site', async () => {
+  const request = new Request('http://localhost:8787/api/forward');
+  for (const [devAuth, available] of [['true', true], ['false', false], [undefined, false]] as const) {
+    const configured = makeEnv('http://127.0.0.1:8318', undefined, devAuth);
+    assert.deepEqual(await (await forwardingRoute(request, configured.env, 'acct')).json(), { previewAvailable: available });
+  }
+  assert.deepEqual(await (await forwardingRoute(new Request('http://127.0.0.1:8787/api/forward'),
+    makeEnv('http://127.0.0.1:8318', undefined, 'true').env, 'acct')).json(), { previewAvailable: false });
+  const configured = makeEnv('http://127.0.0.1:8318', 'http://localhost:8787', 'true');
+  const response = await forwardingRoute(new Request(`http://localhost:8787/api/forward?session=${sessionId}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port: 80, mode: 'isolated' }),
+  }), configured.env, 'acct');
+  assert.equal(response.status, 200);
+  assert.equal(configured.calls[0].request.headers.get('x-preview-origin'), 'http://127.0.0.1:8318');
 });
 
 test('GET with a session queries the owned Durable Object', async () => {

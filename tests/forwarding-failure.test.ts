@@ -41,9 +41,12 @@ function fixture(reasonCode: number, description: string) {
   };
   const state = {
     getWebSockets: () => [], id: { toString: () => sessionId },
-    storage: { get: async () => 'account' },
+    storage: { get: async (key: string) => key === 'account-id' ? 'account'
+      : { accountId: 'account', authProvider: 'github', authRevision: 1 } },
   };
-  const object = new SSHSessionDO(state, {});
+  const object = new SSHSessionDO(state, { DB: { prepare: () => ({ first: async () => ({
+    account_id: 'account', auth_provider: 'github', auth_revision: 1, access_not_before: 0,
+  }) }) } });
   object.sessions.set(ws, session);
   return { session, object };
 }

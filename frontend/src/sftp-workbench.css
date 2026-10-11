@@ -13,7 +13,7 @@
 .sftp-connection-actions button { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 7px; font-size: 11px; white-space: nowrap; }
 #sftp-disconnect { color: var(--danger); }
 .sftp-state { color: var(--muted); font-size: 12px; white-space: nowrap; }
-.sftp-state[data-state='connected'] { color: var(--accent); }
+.sftp-state[data-state='connected'] { color: var(--success); }
 .sftp-state[data-state='error'] { color: var(--danger); }
 #sftp-connection-message { min-width: 0; flex: 1 1 160px; overflow-wrap: anywhere; color: var(--muted); font-family: var(--sans); font-size: 12px; }
 #sftp-connection-message.error { color: var(--danger); }
@@ -47,7 +47,7 @@
 .sftp-workbench:not(.terminal-open) .terminal-actions .toolbar-button { color: var(--muted); }
 .sftp-workbench #sftp-terminal-collapse { width: 32px; height: 32px; padding: 5px; }
 .sftp-workbench #sftp-terminal-collapse svg { width: 20px; height: 20px; }
-.sftp-terminal-title { font-size: 12px; font-weight: 500; color: #b6c6cf; margin-right: auto; }
+.sftp-terminal-title { font-size: 12px; font-weight: 500; color: var(--text); margin-right: auto; }
 .sftp-terminal-divider { background: var(--border-soft); cursor: row-resize; touch-action: none; display: flex; align-items: center; justify-content: center; }
 .sftp-terminal-divider::after { content: ''; width: 36px; height: 3px; border-radius: 3px; background: var(--muted-2); }
 .sftp-workbench > .terminal-pane:fullscreen { width: 100%; height: 100%; background: var(--terminal); }

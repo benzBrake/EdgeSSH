@@ -1,0 +1,19 @@
+name = "edgessh-preview"
+main = "src/preview-worker.ts"
+compatibility_date = "2026-07-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+# Load only preview settings from the root .dev.vars, excluding main secrets.
+[secrets]
+required = ["PREVIEW_ORIGIN", "DEV_AUTH"]
+
+[[durable_objects.bindings]]
+name = "SSH_SESSIONS"
+class_name = "SSHSessionDO"
+script_name = "edgessh"
+
+[dev]
+ip = "127.0.0.1"
+inspector_port = 9230

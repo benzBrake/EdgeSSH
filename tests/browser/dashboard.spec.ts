@@ -76,25 +76,30 @@ test('已保存主机删除需要确认，弹窗在大屏双列、小屏单列�
   await expect(cards.first().locator('strong')).toHaveText('Backup server');
 });
 
-test('首页切换暗色模式时只更新会话栏主题', async ({ page }) => {
+test('首页和会话栏共用明暗表面，地球在减少动态效果时仍更新颜色', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.addInitScript(() => localStorage.setItem('workers-webssh.theme', 'light'));
   await dashboardFixture(page);
-
-  const sessionBar = page.locator('#session-tabs');
-  const homeTab = page.locator('#session-home');
-  const dashboard = page.locator('#dashboard');
-  const lightBarBackground = await sessionBar.evaluate((element) => getComputedStyle(element).backgroundColor);
-  const lightHomeTabColor = await homeTab.evaluate((element) => getComputedStyle(element).color);
-  const lightDashboardBackground = await dashboard.evaluate((element) => getComputedStyle(element).backgroundColor);
-
+  const canvas = page.locator('#host-globe canvas');
+  await expect(canvas).toBeVisible();
+  const hasSurface = (rgb: number[]) => canvas.evaluate((element, rgb) => {
+    const canvas = element as HTMLCanvasElement;
+    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i] === rgb[0] && pixels[i + 1] === rgb[1] && pixels[i + 2] === rgb[2] && pixels[i + 3] === 255) return true;
+    }
+    return false;
+  }, rgb);
+  await expect.poll(() => hasSurface([255, 255, 255])).toBe(true);
+  await expect(page.locator('#dashboard')).toHaveCSS('background-color', 'rgb(250, 251, 253)');
   if (page.viewportSize()!.width <= 600) await page.locator('#session-menu-toggle').click();
   await page.locator('#theme-toggle').click();
-
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect.poll(() => sessionBar.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(lightBarBackground);
-  await expect.poll(() => homeTab.evaluate((element) => getComputedStyle(element).color)).toBe('rgb(244, 81, 30)');
-  expect(await homeTab.evaluate((element) => getComputedStyle(element).color)).not.toBe(lightHomeTabColor);
-  await expect.poll(() => dashboard.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(lightDashboardBackground);
+  await expect(page.locator('#session-home')).toHaveCSS('color', 'rgb(255, 138, 91)');
+  await expect(page.locator('#dashboard')).toHaveCSS('background-color', 'rgb(16, 24, 32)');
+  await expect(page.locator('#dashboard')).toHaveCSS('color-scheme', 'dark');
+  await expect(page.locator('.home-rail')).toHaveCSS('background-color', 'rgb(24, 35, 46)');
+  await expect.poll(() => hasSurface([24, 35, 46])).toBe(true);
 });
 
 test('账户入口跟随当前语言显示', async ({ page }) => {
@@ -153,14 +158,14 @@ test('会话栏在无会话和关闭最后一个会话后常驻显示', async ({
   await expectEmptyHome();
 });
 
-for (const entry of ['plus', 'ssh-menu', 'quick', 'bottom-quick']) {
+for (const entry of ['plus', 'ssh-menu', 'bottom-quick']) {
   test(`取消未连接会话后没有 tab 或残留终端页：${entry}`, async ({ page }) => {
     await dashboardFixture(page);
     if (entry === 'plus') await page.locator('#session-new').click();
     else if (entry === 'ssh-menu') {
       await page.locator('#session-new').press('ArrowDown');
       await page.locator('#session-create-menu [data-session-kind="ssh"]').click();
-    } else await page.locator(entry === 'quick' ? '#quick-connect' : '#bottom-quick').click();
+    } else await page.locator('#bottom-quick').click();
     const session = page.frameLocator('#session-frame-host iframe');
     await expect(session.locator('#connection-panel')).toBeVisible();
     if (entry === 'plus') await session.locator('#panel-close').press('Escape');
@@ -227,6 +232,11 @@ test('加号单击新建 SSH，长按与键盘菜单选择 SFTP', async ({ page 
   await add.dispatchEvent('pointerdown', { button: 0, clientX: 100, clientY: 20 });
   const menu = page.locator('#session-create-menu');
   await expect(menu).toBeVisible();
+  await expect(menu.locator('[data-session-kind] svg')).toHaveCount(2);
+  const addBounds = await add.boundingBox();
+  const createBounds = await menu.boundingBox();
+  expect(Math.abs(createBounds!.x - addBounds!.x)).toBeLessThanOrEqual(1);
+  expect(createBounds!.y).toBeGreaterThan(addBounds!.y + addBounds!.height);
   await add.dispatchEvent('pointerup');
   await add.dispatchEvent('click');
   await expect(page.locator('.session-tab')).toHaveCount(0);
@@ -280,6 +290,9 @@ test('窄屏会话操作收进三道杠菜单', async ({ page }) => {
   await toggle.click();
   await page.locator('#session-language-toggle').click();
   await expect(page.locator('#language-menu')).toBeVisible();
+  const languageBounds = await page.locator('#language-menu').boundingBox();
+  expect(languageBounds!.x + languageBounds!.width).toBeLessThanOrEqual(menuBounds!.x + 1);
+  expect(languageBounds!.x).toBeGreaterThanOrEqual(0);
   await page.keyboard.press('Escape');
   await expect(page.locator('#language-menu')).toBeHidden();
   await expect(menu).toBeVisible();
@@ -288,6 +301,29 @@ test('窄屏会话操作收进三道杠菜单', async ({ page }) => {
   await expect(toggle).toBeHidden();
   await expect(menu).toBeVisible();
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('桌面语言菜单跟随语言按钮', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 812 });
+  await dashboardFixture(page);
+  const toggle = page.locator('#session-language-toggle');
+  await toggle.click();
+  const buttonBounds = await toggle.boundingBox();
+  const menuBounds = await page.locator('#language-menu').boundingBox();
+  expect(Math.abs(menuBounds!.x + menuBounds!.width - buttonBounds!.x - buttonBounds!.width)).toBeLessThanOrEqual(1);
+  expect(menuBounds!.y).toBeGreaterThan(buttonBounds!.y + buttonBounds!.height);
+});
+
+test('更窄屏幕的语言菜单位于会话菜单下方', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await dashboardFixture(page);
+  await page.locator('#session-menu-toggle').click();
+  await page.locator('#session-language-toggle').click();
+  const groupBounds = await page.locator('#session-button-group').boundingBox();
+  const menuBounds = await page.locator('#language-menu').boundingBox();
+  expect(menuBounds!.y).toBeGreaterThan(groupBounds!.y + groupBounds!.height);
+  expect(menuBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(menuBounds!.x + menuBounds!.width).toBeLessThanOrEqual(320);
 });
 
 test('生成预览、保护密码和使用下载始终对应同一公钥', async ({ page }) => {

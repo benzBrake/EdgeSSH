@@ -6,6 +6,7 @@
   "description": "A Zero Trust protected WebSSH workspace with encrypted D1 host storage",
   "scripts": {
     "dev": "wrangler dev",
+    "dev:preview": "node --experimental-strip-types scripts/dev-preview.ts",
     "dev:web": "vite --config vite.config.ts",
     "build:web": "vite build --config vite.config.ts",
     "typecheck": "tsc -p tsconfig.worker.json --noEmit && tsc -p tsconfig.frontend.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",

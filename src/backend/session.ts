@@ -151,6 +151,7 @@ export class SSHSession {
   private readonly ws: WebSocket;
   private readonly socket: Socket;
   private phase: Phase = 'version';
+  private kexStep: 'init' | 'reply' | 'verifying' | 'newkeys' | 'complete' = 'init';
   private versionBuffer = new Uint8Array();
   private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
   private sendSequence = 0;
@@ -417,6 +418,14 @@ export class SSHSession {
       if (packet.payload.length !== 5) throw new Error('Malformed SSH unimplemented message');
       return;
     }
+    // Connection-layer messages must not produce encrypted replies while the
+    // inbound transport is still unauthenticated during key exchange.
+    if (this.phase === 'kex' || this.phase === 'host-confirm') {
+      await this.handleKex(type, packet.payload);
+      return;
+    }
+    if (type === SSH_MSG_KEXINIT) throw new Error('Server-initiated SSH rekey is not supported');
+    if (type === SSH_MSG_KEX_ECDH_REPLY || type === SSH_MSG_NEWKEYS) throw new Error('Unexpected SSH key exchange message');
     if (type === SSH_MSG_GLOBAL_REQUEST) {
       await this.handleGlobalRequest(packet.payload);
       return;
@@ -425,19 +434,18 @@ export class SSHSession {
       this.keepalivePending = 0;
       return;
     }
-    if (type === SSH_MSG_KEXINIT && this.phase !== 'kex' && this.phase !== 'host-confirm') throw new Error('Server-initiated SSH rekey is not supported');
-    if (this.phase === 'kex' || this.phase === 'host-confirm') await this.handleKex(type, packet.payload);
-    else if (this.phase === 'auth') await this.handleAuth(type, packet.payload);
+    if (this.phase === 'auth') await this.handleAuth(type, packet.payload);
     else if (this.phase === 'pty' || this.phase === 'shell' || this.phase === 'ready') await this.handleChannel(type, packet.payload);
   }
 
   private async handleKex(type: number, payload: Uint8Array): Promise<void> {
     if (this.ignoreNextKexPacket) {
       this.ignoreNextKexPacket = false;
+      if (type < 30 || type > 49) throw new Error('Expected a guessed SSH key exchange packet');
       return;
     }
     if (type === SSH_MSG_KEXINIT) {
-      if (this.encryptor) throw new Error('SSH rekey is not supported by this terminal session');
+      if (this.kexStep !== 'init') throw new Error('Unexpected or duplicate SSH KEXINIT');
       this.remoteKex = payload;
       const client = parseKEXInit(this.localKex!);
       const server = parseKEXInit(payload);
@@ -457,21 +465,31 @@ export class SSHSession {
         || negotiate(client.compressionS2C, server.compressionS2C, 'server compression') !== 'none') {
         throw new Error('SSH compression is not supported');
       }
+      this.kexStep = 'reply';
       await this.sendEcdhInit();
       return;
     }
     if (type === SSH_MSG_KEX_ECDH_REPLY) {
+      if (this.kexStep !== 'reply') throw new Error('Unexpected or duplicate SSH key exchange reply');
+      // Consume the reply before signature verification or browser confirmation
+      // can yield; replay must never reinitialize the outbound key and nonce.
+      this.kexStep = 'verifying';
       await this.handleEcdhReply(payload);
+      if (this.phase !== 'closed') this.kexStep = 'newkeys';
       return;
     }
     if (type === SSH_MSG_NEWKEYS) {
-      if (!this.keys || !this.encryptor) throw new Error('Received NEWKEYS before completing key exchange');
+      if (this.kexStep !== 'newkeys' || !this.keys || !this.encryptor) throw new Error('Received NEWKEYS before completing key exchange');
+      if (payload.length !== 1) throw new Error('Malformed SSH NEWKEYS');
       // The server's new keys apply only to subsequent inbound packets.
       await this.enableInboundEncryption();
+      this.kexStep = 'complete';
       this.phase = 'auth';
       this.status('authenticating', 'Encrypted transport established; authenticating');
       await this.sendEncrypted(new Uint8Array([SSH_MSG_SERVICE_REQUEST, ...encodeString('ssh-userauth')]));
+      return;
     }
+    throw new Error('Unexpected SSH message during key exchange');
   }
 
   private async sendEcdhInit(): Promise<void> {
@@ -516,6 +534,7 @@ export class SSHSession {
     } else if (!await this.confirmHostKey(fingerprint, keyType, trust === 'changed' ? this.config.expectedFingerprint : undefined)) {
       throw new SSHAuthDefectError('Host key was not accepted');
     }
+    if (this.phase === 'closed') return;
     this.status('host_key_verified', `Host key verified (${keyType})`);
 
     this.sessionId ??= hash;

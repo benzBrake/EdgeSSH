@@ -118,3 +118,16 @@ test('previewOrigin allows independent custom and workers.dev domains', () => {
   assert.equal(previewOrigin('https://preview.account.workers.dev', 'https://ssh.example.com'),
     'https://preview.account.workers.dev');
 });
+
+test('development preview accepts local HTTP ports and retains site isolation', () => {
+  assert.equal(previewOrigin('http://127.0.0.1:8318', 'http://localhost:8787', true), 'http://127.0.0.1:8318');
+  assert.equal(previewOrigin('http://preview.localhost:8318', 'http://localhost:8787', true), 'http://preview.localhost:8318');
+  assert.equal(previewOrigin('http://[::1]:8318', 'http://localhost:8787', true), 'http://[::1]:8318');
+  assert.equal(previewOrigin('https://127.0.0.1:8318', 'http://localhost:8787', true), 'https://127.0.0.1:8318');
+  assert.throws(() => previewOrigin('http://127.0.0.1:8318', 'http://127.0.0.1:8787', true));
+  assert.throws(() => previewOrigin('http://preview.example.com:8318', 'http://localhost:8787', true));
+  assert.throws(() => previewOrigin('https://preview.example.com:8318', 'http://localhost:8787', true));
+  for (const value of ['http://127.0.0.1:8318', 'https://127.0.0.1:8318']) {
+    assert.throws(() => previewOrigin(value, 'http://localhost:8787'));
+  }
+});

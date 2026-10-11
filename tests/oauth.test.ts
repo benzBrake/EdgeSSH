@@ -130,6 +130,22 @@ test('OAuth starts with random state, S256 PKCE and no privileged scopes', async
   assert.equal(first.authorization.toString().includes(baseEnv.GH_CLIENT_SECRET), false);
 });
 
+test('OAuth accepts standard Base64 encryption keys containing + and / without changing stored data', async () => {
+  for (const byte of [251, 255]) {
+    for (const padded of [true, false]) {
+      const runtime = environment();
+      const encoded = Buffer.alloc(32, byte).toString('base64');
+      runtime.env.ENCRYPTION_KEY = padded ? encoded : encoded.replace(/=+$/, '');
+      const secret = { password: 'existing-host-password' };
+      const ciphertext = await encryptHost(secret, runtime.env.ENCRYPTION_KEY, runtime.state.account_id, 'host-1');
+      const { cookie } = await login(runtime.env);
+      const account = await currentAccount(request('/api/auth/me', cookie), runtime.env);
+      assert.equal(account.username, 'administrator');
+      assert.deepEqual(await decryptHost(ciphertext, runtime.env.ENCRYPTION_KEY, account.id, 'host-1'), secret);
+    }
+  }
+});
+
 test('callback binds state to its browser cookie before any token exchange', async () => {
   const flow = await start();
   let calls = 0;
@@ -154,7 +170,7 @@ test('only the numeric GitHub administrator receives a revision-bound session', 
   assert.equal(denied.headers.getSetCookie().some((value) => value.startsWith('__Host-edgessh-session=')), false);
   const { response, cookie } = await login();
   const account = await currentAccount(request('/api/auth/me', cookie), env);
-  assert.deepEqual(account, { id: shared.state.account_id, username: 'administrator' });
+  assert.deepEqual(account, { id: shared.state.account_id, username: 'administrator', authRevision: shared.state.auth_revision });
   assert.equal(response.headers.get('Location'), '/');
   assert.equal(cookie.includes('private-github-token'), false);
   assert.deepEqual({ sub: decodeJwt(cookie.split('=')[1]).sub, revision: decodeJwt(cookie.split('=')[1]).revision }, { sub: '123', revision: 1 });
@@ -250,10 +266,10 @@ test('multiple Access identities share one workspace while invalid application t
     const first = await accessToken({ sub: 'first-subject', email: 'first@example.com' });
     const second = await accessToken({ sub: 'second-subject', email: 'second@example.com' });
     assert.deepEqual(await currentAccount(request('/api/auth/me', `CF_Authorization=${first}`), cloudflare), {
-      id: runtime.state.account_id, username: 'first@example.com',
+      id: runtime.state.account_id, username: 'first@example.com', authRevision: runtime.state.auth_revision,
     });
     assert.deepEqual(await currentAccount(request('/api/auth/me', `CF_Authorization=${second}`), cloudflare), {
-      id: runtime.state.account_id, username: 'second@example.com',
+      id: runtime.state.account_id, username: 'second@example.com', authRevision: runtime.state.auth_revision,
     });
 
     const wrongKeys = await generateKeyPair('RS256');

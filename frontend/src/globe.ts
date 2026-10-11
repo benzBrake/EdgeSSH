@@ -25,18 +25,15 @@ export class HostGlobe {
   private pointerX = 0;
   private size = 0;
   private readonly resize: ResizeObserver;
-  private readonly orange: string;
-  private readonly grid: string;
-  private readonly paper: string;
+  private orange = '';
+  private grid = '';
+  private paper = '';
 
   constructor(private readonly root: HTMLElement, private readonly connect: (host: CloudHost) => void) {
     this.context = this.canvas.getContext('2d')!;
     this.canvas.setAttribute('aria-hidden', 'true');
     root.append(this.canvas);
-    const style = getComputedStyle(root);
-    this.orange = style.getPropertyValue('--home-accent').trim();
-    this.grid = style.getPropertyValue('--home-line').trim();
-    this.paper = style.getPropertyValue('--home-surface').trim();
+    this.refreshColors();
     // 复用 Mappo 的真实陆地掩码；一次预计算坐标，旋转时不再遍历地理数据。
     for (let lat = -82; lat <= 84; lat += 1.8) {
       const step = 1.8 / Math.max(0.2, Math.cos(lat * Math.PI / 180));
@@ -91,6 +88,14 @@ export class HostGlobe {
 
   setActive(active: boolean): void { this.active = active; this.schedule(); }
   setPaused(paused: boolean): void { this.active = !paused; this.schedule(); }
+
+  refreshColors(): void {
+    const style = getComputedStyle(this.root);
+    this.orange = style.getPropertyValue('--home-accent').trim();
+    this.grid = style.getPropertyValue('--home-line').trim();
+    this.paper = style.getPropertyValue('--home-surface').trim();
+    this.draw();
+  }
 
   private schedule(): void {
     cancelAnimationFrame(this.frame);

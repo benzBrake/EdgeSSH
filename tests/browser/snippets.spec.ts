@@ -438,7 +438,7 @@ test('紧凑浮窗控件等高，图标操作可用，明暗主题和横屏无�
       await page.locator('#theme-toggle').evaluate(element => (element as HTMLButtonElement).click());
     }
     await expect(session.locator('html')).toHaveAttribute('data-theme', theme);
-    await expect(panel).toHaveCSS('background-color', theme === 'light' ? 'rgb(248, 251, 251)' : 'rgb(13, 18, 25)');
+    await expect(panel).toHaveCSS('background-color', theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(17, 24, 32)');
   };
   const assertLayout = async (height: number) => {
     const search = (await panel.locator('.snippet-search').boundingBox())!;

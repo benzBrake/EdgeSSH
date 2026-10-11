@@ -194,12 +194,12 @@ function usageColor(percent: number): string {
     { value: 100, hue: 0 },
   ];
   const upperIndex = stops.findIndex((stop) => value <= stop.value);
-  if (upperIndex <= 0) return `hsl(${stops[0].hue} 82% 58%)`;
+  if (upperIndex <= 0) return `hsl(${stops[0].hue} 82% var(--usage-lightness))`;
   const lower = stops[upperIndex - 1];
   const upper = stops[upperIndex];
   const position = (value - lower.value) / (upper.value - lower.value);
   const hue = lower.hue + ((upper.hue - lower.hue) * position);
-  return `hsl(${hue.toFixed(1)} 82% 58%)`;
+  return `hsl(${hue.toFixed(1)} 82% var(--usage-lightness))`;
 }
 
 export class ProcessManager {
