@@ -140,6 +140,8 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
 .home-notice { border: 1px solid var(--home-line); border-left: 3px solid var(--home-accent); background: var(--home-surface); padding: 12px 16px; margin-bottom: 18px; border-radius: 5px; overflow-wrap: anywhere; }
 .home-back { width: auto; padding-inline: 10px; font-size: 12px; white-space: nowrap; }
 .host-dialog { width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); padding: 28px; border: 1px solid var(--home-line); border-radius: 14px; color: var(--home-ink); background: var(--home-surface); box-shadow: 0 20px 80px var(--home-shadow); }
+#host-editor-dialog { padding: 0; overflow: hidden; }
+#cloud-host-form { max-height: calc(100dvh - 42px); padding: 28px; overflow-y: auto; overscroll-behavior: contain; }
 .host-dialog::backdrop { background: var(--home-overlay); backdrop-filter: blur(3px); }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .dialog-heading h2 { margin: 0; font-size: 23px; }
@@ -239,6 +241,7 @@ body[data-view='dashboard'] { overflow-y: auto; background: var(--home-bg); }
   .storage-note, #dashboard .quick-card { padding: 18px 16px; gap: 12px; }
   .storage-note p { line-height: 1.8; }
   .host-dialog { padding: 20px; }
+  #cloud-host-form { padding: 20px; }
   #dashboard .host-form-grid :is(input, select, textarea), #dashboard .home-search input { font-size: 16px; }
   .home-footer { font-size: 10px; line-height: 1.8; }
 }
